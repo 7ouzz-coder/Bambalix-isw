@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { equipmentRoutes } from "./modules/equipos/equipos.routes.js";
-import { clientesRoutes } from "./modules/clientes/clientes.routes.js";
+import { clientRoutes } from "./modules/clientes/clientes.routes.js";
 import { eventosRoutes } from "./modules/eventos/eventos.routes.js";
 
 export function createApp({ db, webOrigin }) {
@@ -21,7 +21,7 @@ export function createApp({ db, webOrigin }) {
     res.json({ status: "ok" });
   });
   app.use("/api/v1/operations/resources", equipmentRoutes(db));
-  app.use("/api/v1/clients", clientesRoutes(db));
+  app.use("/api/v1/clients", clientRoutes(db));
   app.use("/api/v1/events", eventosRoutes(db));
 
   app.use((_req, res) => res.status(404).json({ message: "Ruta no encontrada" }));
@@ -31,7 +31,7 @@ export function createApp({ db, webOrigin }) {
     if (error.type === "entity.too.large")
       return res.status(413).json({ message: "La solicitud es demasiado grande" });
     if (error.code === "P2002")
-      return res.status(409).json({ message: "Ya existe un equipo con ese código" });
+      return res.status(409).json({ message: "Ya existe un registro con esos datos" });
     if (error.name === "PrismaClientInitializationError" || error.code === "P1001")
       return res.status(503).json({ message: "La base de datos no está disponible. Intenta nuevamente" });
     console.error("Error de API", { name: error.name, code: error.code });

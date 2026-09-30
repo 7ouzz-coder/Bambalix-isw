@@ -8,9 +8,9 @@ const crearEventoSchema = z
       .min(3, "El título debe tener al menos 3 caracteres")
       .max(160, "El título no puede superar 160 caracteres"),
     clientId: z
-      .number({ required_error: "El cliente es obligatorio" })
-      .int("El ID de cliente debe ser un entero")
-      .positive("El ID de cliente debe ser positivo"),
+      .union([z.string(), z.number()])
+      .transform((val) => String(val))
+      .refine((val) => val.length > 0, { message: "El cliente es obligatorio" }),
     eventTypeId: z
       .number({ required_error: "El tipo de evento es obligatorio" })
       .int("El ID de tipo de evento debe ser un entero")

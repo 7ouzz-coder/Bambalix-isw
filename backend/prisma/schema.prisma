@@ -19,14 +19,16 @@ model Resource {
 }
 
 model Client {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   name      String
-  email     String?
+  email     String
+  rut       String?  @unique
   phone     String?
+  address   String?
   events    Event[]
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now())
 
-  @@map("clients")
+  @@index([name])
 }
 
 model EventType {
@@ -40,7 +42,7 @@ model EventType {
 model Event {
   id          Int       @id @default(autoincrement())
   title       String
-  clientId    Int       @map("client_id")
+  clientId    String    @map("client_id")
   client      Client    @relation(fields: [clientId], references: [id])
   eventTypeId Int       @map("event_type_id")
   eventType   EventType @relation(fields: [eventTypeId], references: [id])
@@ -53,4 +55,3 @@ model Event {
 
   @@map("events")
 }
-
