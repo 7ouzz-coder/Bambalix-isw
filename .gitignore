@@ -7,4 +7,5 @@
 **/*.log
 **/*.tsbuildinfo
 **/AGENTS.md
+**/CLAUDE.md
 .DS_Store

@@ -11,6 +11,13 @@ const equipmentSchema = z.object({
 
 export function equipmentRoutes(db) {
   const router = Router();
+  router.get("/", async (_req, res) => {
+    const equipment = await db.resource.findMany({
+      where: { mode: "UNIT" }, take: 200,
+      orderBy: [{ category: "asc" }, { name: "asc" }, { id: "asc" }],
+    });
+    res.json(equipment);
+  });
   router.post("/", async (req, res) => {
     const result = equipmentSchema.safeParse(req.body);
     if (!result.success) return res.status(400).json({
