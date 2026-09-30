@@ -17,3 +17,15 @@ model Resource {
   createdAt DateTime @default(now())
   @@index([category, name])
 }
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  rut       String?  @unique
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+
+  @@index([name])
+}
