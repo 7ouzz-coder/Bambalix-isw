@@ -1,3 +1,3 @@
-export default function Home() {
-  return <main><h1>Bambalix</h1><p>Recursos y operación · Equipos</p></main>;
-}
+import { EquipmentWorkspace } from "@/modules/equipos/equipment-workspace";
+
+export default function Home() { return <EquipmentWorkspace />; }
