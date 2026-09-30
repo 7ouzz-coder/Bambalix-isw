@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { equipmentRoutes } from "./modules/equipos/equipos.routes.js";
+import { clientesRoutes } from "./modules/clientes/clientes.routes.js";
+import { eventosRoutes } from "./modules/eventos/eventos.routes.js";
 
 export function createApp({ db, webOrigin }) {
   const app = express();
@@ -19,6 +21,9 @@ export function createApp({ db, webOrigin }) {
     res.json({ status: "ok" });
   });
   app.use("/api/v1/operations/resources", equipmentRoutes(db));
+  app.use("/api/v1/clients", clientesRoutes(db));
+  app.use("/api/v1/events", eventosRoutes(db));
+
   app.use((_req, res) => res.status(404).json({ message: "Ruta no encontrada" }));
   app.use((error, _req, res, _next) => {
     if (error instanceof SyntaxError && error.status === 400)
