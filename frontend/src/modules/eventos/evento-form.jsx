@@ -54,7 +54,7 @@ export function EventoForm({ onSaved }) {
     try {
       const evento = await createEvento({
         title: title.trim(),
-        clientId: parseInt(clientId, 10),
+        clientId: String(clientId).trim(),
         eventTypeId: parseInt(eventTypeId, 10),
         startsAt: start.toISOString(),
         endsAt: end.toISOString(),
