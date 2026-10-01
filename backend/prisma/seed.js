@@ -5,22 +5,22 @@ const prisma = new PrismaClient();
 async function seed() {
   console.log("Cargando datos de prueba...");
 
-  // Clientes ficticios para la selección de Ángel / Gabriel
+  // Clientes ficticios para la selección
   const clientes = await Promise.all([
     prisma.client.upsert({
-      where: { id: 1 },
-      update: {},
-      create: { id: 1, name: "Cliente Demo Uno", email: "demo1@ejemplo.cl", phone: "+56912345678" },
+      where: { id: "cli_demo_1" },
+      update: { name: "Cliente Demo Uno", email: "demo1@ejemplo.cl", phone: "+56912345678" },
+      create: { id: "cli_demo_1", name: "Cliente Demo Uno", email: "demo1@ejemplo.cl", phone: "+56912345678" },
     }),
     prisma.client.upsert({
-      where: { id: 2 },
-      update: {},
-      create: { id: 2, name: "Cliente Demo Dos", email: "demo2@ejemplo.cl", phone: "+56987654321" },
+      where: { id: "cli_demo_2" },
+      update: { name: "Cliente Demo Dos", email: "demo2@ejemplo.cl", phone: "+56987654321" },
+      create: { id: "cli_demo_2", name: "Cliente Demo Dos", email: "demo2@ejemplo.cl", phone: "+56987654321" },
     }),
     prisma.client.upsert({
-      where: { id: 3 },
-      update: {},
-      create: { id: 3, name: "Cliente Demo Tres", email: "demo3@ejemplo.cl" },
+      where: { id: "cli_demo_3" },
+      update: { name: "Cliente Demo Tres", email: "demo3@ejemplo.cl" },
+      create: { id: "cli_demo_3", name: "Cliente Demo Tres", email: "demo3@ejemplo.cl" },
     }),
   ]);
   console.log(`  ${clientes.length} clientes cargados.`);
