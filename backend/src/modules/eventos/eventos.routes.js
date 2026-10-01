@@ -8,9 +8,8 @@ const crearEventoSchema = z
       .min(3, "El título debe tener al menos 3 caracteres")
       .max(160, "El título no puede superar 160 caracteres"),
     clientId: z
-      .union([z.string(), z.number()])
-      .transform((val) => String(val))
-      .refine((val) => val.length > 0, { message: "El cliente es obligatorio" }),
+      .string({ required_error: "El cliente es obligatorio" })
+      .min(1, "El cliente es obligatorio"),
     eventTypeId: z
       .number({ required_error: "El tipo de evento es obligatorio" })
       .int("El ID de tipo de evento debe ser un entero")
@@ -35,12 +34,14 @@ const crearEventoSchema = z
   })
   .refine(
     (data) => {
+      if (!data.startsAt || !data.endsAt) return true;
       const inicio = new Date(data.startsAt);
       const termino = new Date(data.endsAt);
+      if (isNaN(inicio.getTime()) || isNaN(termino.getTime())) return true;
       return termino > inicio;
     },
     {
-      message: "El término debe ser posterior al inicio",
+      message: "La fecha de término debe ser posterior al inicio",
       path: ["endsAt"],
     }
   );
@@ -84,9 +85,10 @@ export function eventosRoutes(db) {
 
       res.status(201).json(evento);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        const mensaje = error.errors.map((e) => e.message).join("; ");
-        return res.status(400).json({ message: mensaje });
+      if (error instanceof z.ZodError || error?.name === "ZodError" || Array.isArray(error?.issues)) {
+        const issues = error.issues || error.errors || [];
+        const mensaje = issues.map((e) => e.message).filter(Boolean).join("; ");
+        return res.status(400).json({ message: mensaje || "Datos de evento inválidos" });
       }
       next(error);
     }
