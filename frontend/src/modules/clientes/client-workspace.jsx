@@ -16,7 +16,7 @@ export function ClientWorkspace() {
       <WorkspaceNavigation activeModule="clientes" />
       <div className="sidebar-foot"><span className="small-line" /><p>Detrás de cada evento,<br />todo en su lugar.</p><small>Recursos y operación</small></div>
     </aside>
-    <main className="main-content"><header className="topbar"><span>Recursos y operación <span className="crumb">/ Clientes</span></span><span className="demo-label">Avance inicial · Local</span></header>
+    <main className="main-content"><header className="topbar"><span>Recursos y operación <span className="crumb">/ Clientes</span></span></header>
       <section className="inventory-section" aria-labelledby="clients-heading">
         <p className="eyebrow">CONTACTOS / CLIENTES</p>
         <div className="page-heading"><div><h1 id="clients-heading">Relaciones que<br className="desktop-break" /> empiezan aquí.</h1><p>Registra y consulta los datos de tus clientes.</p></div>

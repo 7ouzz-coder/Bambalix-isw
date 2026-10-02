@@ -14,7 +14,7 @@ export function EquipmentWorkspace() {
       <nav aria-label="Principal"><a href="/" aria-current="page" className="nav-item"><Boxes aria-hidden="true" />Equipos<ArrowUpRight aria-hidden="true" /></a><a href="/clientes" className="nav-item"><Users aria-hidden="true" />Clientes<ArrowUpRight aria-hidden="true" /></a></nav>
       <div className="sidebar-foot"><span className="small-line" /><p>Detrás de cada evento,<br />todo en su lugar.</p><small>Recursos y operación</small></div>
     </aside>
-    <main className="main-content"><header className="topbar"><span>Recursos y operación <span className="crumb">/ Equipos</span></span><span className="demo-label">Avance inicial · Local</span></header>
+    <main className="main-content"><header className="topbar"><span>Recursos y operación <span className="crumb">/ Equipos</span></span></header>
       <section className="inventory-section" aria-labelledby="equipment-heading">
         <p className="eyebrow">INVENTARIO / EQUIPOS INDIVIDUALES</p>
         <div className="page-heading"><div><h1 id="equipment-heading">Todo empieza<br className="desktop-break" /> por el equipo.</h1><p>Registra y consulta tus equipos en un solo lugar.</p></div><EquipmentForm onSaved={equipment => { setNotice(`Equipo «${equipment.name}» registrado correctamente.`); setRevision(previous => previous + 1); }} /></div>
