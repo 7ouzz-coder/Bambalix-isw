@@ -1,4 +1,4 @@
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL;
 const API_BASE = rawApiUrl.endsWith("/api/v1") ? rawApiUrl : `${rawApiUrl.replace(/\/$/, "")}/api/v1`;
 
 function handleNetworkError(error) {
