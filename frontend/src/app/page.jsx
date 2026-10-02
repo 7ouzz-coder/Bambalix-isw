@@ -34,7 +34,7 @@ export default function Home() {
             <br />
             todo en su lugar.
           </p>
-          <small>Bambalix — Avance Inicial</small>
+          <small>Bambalix</small>
         </div>
       </aside>
 
