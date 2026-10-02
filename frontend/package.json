@@ -7,10 +7,10 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1",
+    "dev": "node --env-file=.env server.js dev",
     "build": "next build",
-    "start": "next start --hostname 127.0.0.1",
-    "test": "vitest run"
+    "start": "node --env-file=.env server.js start",
+    "test": "node --env-file=.env node_modules/vitest/vitest.mjs run"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
