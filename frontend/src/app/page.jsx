@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { Boxes, Calendar, Layers3, ArrowUpRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Layers3 } from "lucide-react";
 import { EquipmentForm } from "@/modules/equipos/equipment-form";
 import { EquipmentList } from "@/modules/equipos/equipment-list";
 import { EventoWorkspace } from "@/modules/eventos/evento-workspace";
+import { WorkspaceNavigation } from "@/components/workspace-navigation";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("equipos");
   const [equiposNotice, setEquiposNotice] = useState("");
   const [equiposRevision, setEquiposRevision] = useState(0);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("module") === "eventos") {
+      setActiveTab("eventos");
+    }
+  }, []);
 
   return (
     <div className="workspace">
@@ -19,28 +26,7 @@ export default function Home() {
           Bambalix<span>®</span>
         </a>
         <p className="nav-label">ESPACIO DE TRABAJO</p>
-        <nav aria-label="Principal">
-          <button
-            type="button"
-            onClick={() => setActiveTab("equipos")}
-            className={`nav-item ${activeTab === "equipos" ? "active font-bold" : ""}`}
-            style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}
-          >
-            <Boxes aria-hidden="true" />
-            Equipos
-            <ArrowUpRight aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("eventos")}
-            className={`nav-item ${activeTab === "eventos" ? "active font-bold" : ""}`}
-            style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", marginTop: "0.5rem" }}
-          >
-            <Calendar aria-hidden="true" />
-            Eventos
-            <ArrowUpRight aria-hidden="true" />
-          </button>
-        </nav>
+        <WorkspaceNavigation activeModule={activeTab} />
         <div className="sidebar-foot">
           <span className="small-line" />
           <p>
