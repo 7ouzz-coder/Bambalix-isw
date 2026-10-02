@@ -17,3 +17,41 @@ model Resource {
   createdAt DateTime @default(now())
   @@index([category, name])
 }
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  rut       String?  @unique
+  phone     String?
+  address   String?
+  events    Event[]
+  createdAt DateTime @default(now())
+
+  @@index([name])
+}
+
+model EventType {
+  id     Int     @id @default(autoincrement())
+  name   String  @unique
+  events Event[]
+
+  @@map("event_types")
+}
+
+model Event {
+  id          Int       @id @default(autoincrement())
+  title       String
+  clientId    String    @map("client_id")
+  client      Client    @relation(fields: [clientId], references: [id])
+  eventTypeId Int       @map("event_type_id")
+  eventType   EventType @relation(fields: [eventTypeId], references: [id])
+  startsAt    DateTime  @map("starts_at")
+  endsAt      DateTime  @map("ends_at")
+  attendees   Int
+  location    String?
+  needs       String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("events")
+}
