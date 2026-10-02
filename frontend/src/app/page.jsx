@@ -27,7 +27,7 @@ export default function Home() {
             style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}
           >
             <Boxes aria-hidden="true" />
-            Equipos (Guillermo)
+            Equipos
             <ArrowUpRight aria-hidden="true" />
           </button>
           <button
@@ -37,7 +37,7 @@ export default function Home() {
             style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", marginTop: "0.5rem" }}
           >
             <Calendar aria-hidden="true" />
-            Eventos (Ángel)
+            Eventos
             <ArrowUpRight aria-hidden="true" />
           </button>
         </nav>
