@@ -1,17 +1,4 @@
 -- CreateTable
-CREATE TABLE "Client" (
-    "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "email" TEXT NOT NULL,
-    "rut" TEXT,
-    "phone" TEXT,
-    "address" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "Client_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "event_types" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
@@ -36,12 +23,6 @@ CREATE TABLE "events" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Client_rut_key" ON "Client"("rut");
-
--- CreateIndex
-CREATE INDEX "Client_name_idx" ON "Client"("name");
-
--- CreateIndex
 CREATE UNIQUE INDEX "event_types_name_key" ON "event_types"("name");
 
 -- AddForeignKey
@@ -49,3 +30,4 @@ ALTER TABLE "events" ADD CONSTRAINT "events_client_id_fkey" FOREIGN KEY ("client
 
 -- AddForeignKey
 ALTER TABLE "events" ADD CONSTRAINT "events_event_type_id_fkey" FOREIGN KEY ("event_type_id") REFERENCES "event_types"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
