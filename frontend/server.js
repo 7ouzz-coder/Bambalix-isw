@@ -9,9 +9,6 @@ const port = process.env.PORT;
 if (!host || (!isIP(host) && !/^[a-zA-Z0-9.-]+$/.test(host))) {
   throw new Error("Revisa HOST en frontend/.env: usa una IP o un nombre de host, sin http ni puerto.");
 }
-if (!/^\d+$/.test(port ?? "") || Number(port) < 1024 || Number(port) > 65535) {
-  throw new Error("Revisa PORT en frontend/.env: debe ser un entero entre 1024 y 65535.");
-}
 if (!["dev", "start"].includes(command)) {
   throw new Error("Usa npm run dev o npm start.");
 }
