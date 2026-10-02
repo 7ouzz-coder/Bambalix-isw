@@ -43,7 +43,6 @@ export default function Home() {
           <span>
             {activeTab === "equipos" ? "Recursos y operación / Equipos" : "Eventos y agenda / Registrar eventos"}
           </span>
-          <span className="demo-label">Avance inicial · Local</span>
         </header>
 
         {activeTab === "equipos" ? (
@@ -73,7 +72,6 @@ export default function Home() {
 
         <footer className="page-footer">
           <span>BAMBALIX</span>
-          <span>Avance inicial de desarrollo</span>
         </footer>
       </main>
     </div>
