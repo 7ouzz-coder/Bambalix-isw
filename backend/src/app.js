@@ -3,7 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { equipmentRoutes } from "./modules/equipos/equipos.routes.js";
 import { clientRoutes } from "./modules/clientes/clientes.routes.js";
-import { eventosRoutes } from "./modules/eventos/eventos.routes.js";
+import { eventosRoutes } from "./routes/eventos.routes.js";
 
 export function createApp({ db, webOrigin }) {
   const app = express();
