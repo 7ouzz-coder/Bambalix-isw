@@ -9,7 +9,8 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
 
   beforeEach(() => {
     mockDb = {
-      $queryRaw: vi.fn(),
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      $transaction: vi.fn((fn) => fn(mockDb)),
       client: {
         findUnique: vi.fn(),
       },
@@ -21,6 +22,7 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
         create: vi.fn(),
         findMany: vi.fn(),
         findUnique: vi.fn(),
+        findFirst: vi.fn().mockResolvedValue(null),
         update: vi.fn(),
       },
       equipment: {
@@ -134,6 +136,27 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
 
       expect(response.status).toBe(404);
       expect(response.body.message).toBe("Tipo de evento no encontrado");
+    });
+
+    it("rechaza con 409 si ya existe un evento en el mismo espacio durante el periodo solicitado", async () => {
+      mockDb.client.findUnique.mockResolvedValue({ id: "client-123", name: "Empresa Uno" });
+      mockDb.eventType.findUnique.mockResolvedValue({ id: 1, name: "Corporativo" });
+      mockDb.event.findFirst.mockResolvedValue({
+        id: 99,
+        title: "Evento Previo",
+        location: "Salón Principal",
+        startsAt: new Date("2026-11-20T17:00:00.000Z"),
+        endsAt: new Date("2026-11-20T21:00:00.000Z"),
+      });
+
+      const response = await request(app)
+        .post("/api/v1/events")
+        .set("Origin", webOrigin)
+        .send(validPayload);
+
+      expect(response.status).toBe(409);
+      expect(response.body.message).toContain("Conflicto de programación");
+      expect(response.body.message).toContain("Salón Principal");
       expect(mockDb.event.create).not.toHaveBeenCalled();
     });
   });
@@ -358,6 +381,45 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
 
       expect(response.status).toBe(400);
       expect(response.body.message).toContain("La fecha de término debe ser posterior al inicio");
+    });
+
+    it("rechaza con 409 al editar si el nuevo horario o espacio colisiona con otro evento", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      mockDb.event.findFirst.mockResolvedValue({
+        id: 77,
+        title: "Evento Colisionante",
+        location: "Salón A",
+        startsAt: new Date("2026-11-20T19:00:00.000Z"),
+        endsAt: new Date("2026-11-20T22:00:00.000Z"),
+      });
+
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({ location: "Salón A", startsAt: "2026-11-20T19:30:00.000Z" });
+
+      expect(response.status).toBe(409);
+      expect(response.body.message).toContain("Conflicto de programación");
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("permite editar sin cambiar horario ni espacio sin colisionar consigo mismo (200)", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      mockDb.event.findFirst.mockResolvedValue(null);
+      mockDb.event.update.mockResolvedValue({
+        ...existingEvento,
+        title: "Nuevo Título Mismo Horario",
+        client: { id: "client-1", name: "Empresa Uno" },
+        eventType: { id: 2, name: "Social" },
+      });
+
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({ title: "Nuevo Título Mismo Horario" });
+
+      expect(response.status).toBe(200);
+      expect(mockDb.event.update).toHaveBeenCalled();
     });
   });
 });
