@@ -24,7 +24,12 @@ export function EventoWorkspace() {
         />
       </div>
       {notice ? <p className="success-message" role="status">{notice}</p> : null}
-      <EventoList revision={revision} />
+      <EventoList
+        revision={revision}
+        onEventoUpdated={(evento) => {
+          setNotice(`Evento «${evento.title}» actualizado correctamente.`);
+        }}
+      />
     </section>
   );
 }

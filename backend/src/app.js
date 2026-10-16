@@ -9,7 +9,7 @@ export function createApp({ db, webOrigin }) {
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet());
-  app.use(cors({ origin: webOrigin, methods: ["GET", "POST"] }));
+  app.use(cors({ origin: webOrigin, methods: ["GET", "POST", "PATCH"] }));
   app.use((req, res, next) => {
     if (req.method !== "GET" && req.get("origin") && req.get("origin") !== webOrigin)
       return res.status(403).json({ message: "Origen no autorizado" });
