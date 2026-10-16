@@ -21,6 +21,8 @@ export function EventoForm({ onSaved }) {
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [attendees, setAttendees] = useState("");
+  const [location, setLocation] = useState("");
+  const [needs, setNeeds] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -59,6 +61,8 @@ export function EventoForm({ onSaved }) {
         startsAt: start.toISOString(),
         endsAt: end.toISOString(),
         attendees: parseInt(attendees, 10),
+        location: location.trim() || undefined,
+        needs: needs.trim() || undefined,
       });
 
       setTitle("");
@@ -67,6 +71,8 @@ export function EventoForm({ onSaved }) {
       setStartsAt("");
       setEndsAt("");
       setAttendees("");
+      setLocation("");
+      setNeeds("");
       setOpen(false);
       onSaved?.(evento);
     } catch (err) {
@@ -175,6 +181,26 @@ export function EventoForm({ onSaved }) {
               value={attendees}
               onChange={(e) => setAttendees(e.target.value)}
               required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="location">Lugar / Espacio (opcional)</Label>
+            <Input
+              id="location"
+              placeholder="Ej: Salón Principal"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="needs">Necesidades o notas (opcional)</Label>
+            <Input
+              id="needs"
+              placeholder="Ej: Iluminación cálida y microfonía"
+              value={needs}
+              onChange={(e) => setNeeds(e.target.value)}
             />
           </div>
 

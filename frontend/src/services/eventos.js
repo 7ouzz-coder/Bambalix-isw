@@ -34,9 +34,14 @@ export async function getTiposEvento() {
   }
 }
 
-export async function getEventos() {
+export async function getEventos(params = {}) {
   try {
-    const res = await fetch(`${API_BASE}/events`);
+    const query = new URLSearchParams();
+    if (params.from) query.set("from", params.from);
+    if (params.to) query.set("to", params.to);
+    const qs = query.toString();
+    const url = qs ? `${API_BASE}/events?${qs}` : `${API_BASE}/events`;
+    const res = await fetch(url);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.message || "Error al obtener lista de eventos");
@@ -65,3 +70,23 @@ export async function createEvento(data) {
   }
   return body;
 }
+
+export async function updateEvento(id, data) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/events/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  } catch (error) {
+    handleNetworkError(error);
+  }
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body.message || body.error || "Error al actualizar el evento");
+  }
+  return body;
+}
+

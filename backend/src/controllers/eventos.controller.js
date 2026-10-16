@@ -1,8 +1,10 @@
 import {
   NotFoundError,
+  ValidationError,
   createEvento,
   listEventos,
   listTiposEvento,
+  updateEvento,
 } from "../services/eventos.service.js";
 
 export function createEventoController(db) {
@@ -40,3 +42,21 @@ export function listTiposEventoController(db) {
     }
   };
 }
+
+export function updateEventoController(db) {
+  return async (req, res, next) => {
+    try {
+      const evento = await updateEvento(db, req.params.id, req.body);
+      res.json(evento);
+    } catch (error) {
+      if (error instanceof NotFoundError || error.statusCode === 404) {
+        return res.status(404).json({ message: error.message });
+      }
+      if (error instanceof ValidationError || error.statusCode === 400) {
+        return res.status(400).json({ message: error.message });
+      }
+      next(error);
+    }
+  };
+}
+

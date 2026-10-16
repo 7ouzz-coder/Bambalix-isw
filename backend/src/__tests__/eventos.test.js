@@ -20,6 +20,8 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
       event: {
         create: vi.fn(),
         findMany: vi.fn(),
+        findUnique: vi.fn(),
+        update: vi.fn(),
       },
       equipment: {
         findMany: vi.fn(),
@@ -181,6 +183,123 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
       expect(mockDb.eventType.findMany).toHaveBeenCalledWith({
         orderBy: { name: "asc" },
       });
+    });
+  });
+
+  describe("PATCH /api/v1/events/:id", () => {
+    const existingEvento = {
+      id: 5,
+      title: "Gala Original",
+      clientId: "client-1",
+      eventTypeId: 2,
+      startsAt: new Date("2026-11-20T18:00:00.000Z"),
+      endsAt: new Date("2026-11-20T23:00:00.000Z"),
+      attendees: 100,
+      location: "Salón A",
+      needs: "Audio básico",
+    };
+
+    it("actualiza un evento exitosamente (200) manteniendo el mismo ID y relaciones", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      mockDb.event.update.mockResolvedValue({
+        ...existingEvento,
+        title: "Gala Editada",
+        attendees: 120,
+        client: { id: "client-1", name: "Empresa Uno" },
+        eventType: { id: 2, name: "Social" },
+      });
+
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({ title: "Gala Editada", attendees: 120 });
+
+      expect(response.status).toBe(200);
+      expect(response.body.id).toBe(5);
+      expect(response.body.title).toBe("Gala Editada");
+      expect(response.body.attendees).toBe(120);
+      expect(mockDb.event.update).toHaveBeenCalledWith({
+        where: { id: 5 },
+        data: expect.objectContaining({ title: "Gala Editada", attendees: 120 }),
+        include: {
+          client: { select: { id: true, name: true } },
+          eventType: { select: { id: true, name: true } },
+        },
+      });
+    });
+
+    it("devuelve 404 si el evento no existe", async () => {
+      mockDb.event.findUnique.mockResolvedValue(null);
+
+      const response = await request(app)
+        .patch("/api/v1/events/999")
+        .set("Origin", webOrigin)
+        .send({ title: "Nuevo Título" });
+
+      expect(response.status).toBe(404);
+      expect(response.body.message).toBe("Evento no encontrado");
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("devuelve 404 si se intenta cambiar a un cliente inexistente", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      mockDb.client.findUnique.mockResolvedValue(null);
+
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({ clientId: "cliente-inexistente" });
+
+      expect(response.status).toBe(404);
+      expect(response.body.message).toBe("Cliente no encontrado");
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("devuelve 404 si se intenta cambiar a un tipo de evento inexistente", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      mockDb.eventType.findUnique.mockResolvedValue(null);
+
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({ eventTypeId: 999 });
+
+      expect(response.status).toBe(404);
+      expect(response.body.message).toBe("Tipo de evento no encontrado");
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("rechaza con 400 si el ID en la URL no es un número entero válido", async () => {
+      const response = await request(app)
+        .patch("/api/v1/events/no-es-numero")
+        .set("Origin", webOrigin)
+        .send({ title: "Nuevo Título" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe("ID de evento inválido");
+    });
+
+    it("rechaza con 400 si el título editado tiene menos de 3 caracteres", async () => {
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({ title: "ab" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain("El título debe tener al menos 3 caracteres");
+    });
+
+    it("rechaza con 400 si la fecha de término es anterior al inicio al editar fechas", async () => {
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({
+          startsAt: "2026-11-20T21:00:00.000Z",
+          endsAt: "2026-11-20T19:00:00.000Z",
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain("La fecha de término debe ser posterior al inicio");
     });
   });
 });
