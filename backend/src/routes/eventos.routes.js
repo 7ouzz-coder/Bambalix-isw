@@ -1,6 +1,10 @@
 import { Router } from "express";
-import { validateBody } from "../middlewares/eventos.validation.js";
-import { crearEventoSchema, editarEventoSchema } from "../schemas/eventos.schema.js";
+import { validateBody, validateQuery } from "../middlewares/eventos.validation.js";
+import {
+  crearEventoSchema,
+  editarEventoSchema,
+  consultarAgendaSchema,
+} from "../schemas/eventos.schema.js";
 import {
   createEventoController,
   listEventosController,
@@ -14,8 +18,8 @@ export function eventosRoutes(db) {
   // POST /api/v1/events — Crear evento
   router.post("/", validateBody(crearEventoSchema), createEventoController(db));
 
-  // GET /api/v1/events — Listar eventos
-  router.get("/", listEventosController(db));
+  // GET /api/v1/events — Listar eventos (soporta consulta de agenda por periodo ?from=...&to=...)
+  router.get("/", validateQuery(consultarAgendaSchema), listEventosController(db));
 
   // GET /api/v1/events/types — Listar tipos de evento
   router.get("/types", listTiposEventoController(db));

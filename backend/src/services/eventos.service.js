@@ -43,13 +43,23 @@ export async function createEvento(db, datos) {
   });
 }
 
-export async function listEventos(db) {
+export async function listEventos(db, filters = {}) {
+  const where = {};
+  let orderBy = { createdAt: "desc" };
+
+  if (filters.from && filters.to) {
+    where.startsAt = { lt: new Date(filters.to) };
+    where.endsAt = { gt: new Date(filters.from) };
+    orderBy = { startsAt: "asc" };
+  }
+
   return db.event.findMany({
+    where,
     include: {
       client: { select: { id: true, name: true } },
       eventType: { select: { id: true, name: true } },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy,
   });
 }
 
