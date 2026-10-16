@@ -96,3 +96,33 @@ export const editarEventoSchema = z
     }
   );
 
+export const consultarAgendaSchema = z
+  .object({
+    from: z
+      .string()
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "La fecha de inicio 'from' no es válida",
+      })
+      .optional(),
+    to: z
+      .string()
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "La fecha de término 'to' no es válida",
+      })
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      if (!data.from && !data.to) return true;
+      if (!data.from || !data.to) return false;
+      const f = new Date(data.from);
+      const t = new Date(data.to);
+      return t > f;
+    },
+    {
+      message: "El periodo de consulta debe tener fechas 'from' y 'to' válidas con 'to' posterior a 'from'",
+      path: ["to"],
+    }
+  );
+
+

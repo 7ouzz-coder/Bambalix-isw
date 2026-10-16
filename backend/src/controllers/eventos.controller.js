@@ -22,9 +22,10 @@ export function createEventoController(db) {
 }
 
 export function listEventosController(db) {
-  return async (_req, res, next) => {
+  return async (req, res, next) => {
     try {
-      const eventos = await listEventos(db);
+      const query = req.validatedQuery || req.query || {};
+      const eventos = await listEventos(db, query);
       res.json(eventos);
     } catch (error) {
       next(error);

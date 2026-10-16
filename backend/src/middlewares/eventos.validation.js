@@ -15,3 +15,20 @@ export function validateBody(schema) {
     }
   };
 }
+
+export function validateQuery(schema) {
+  return (req, res, next) => {
+    try {
+      req.validatedQuery = schema.parse(req.query);
+      next();
+    } catch (error) {
+      if (error instanceof z.ZodError || error?.name === "ZodError" || Array.isArray(error?.issues)) {
+        const issues = error.issues || error.errors || [];
+        const mensaje = issues.map((e) => e.message).filter(Boolean).join("; ");
+        return res.status(400).json({ message: mensaje || "Parámetros de consulta inválidos" });
+      }
+      next(error);
+    }
+  };
+}
+

@@ -159,12 +159,70 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
       expect(response.body).toHaveLength(1);
       expect(response.body[0].title).toBe("Evento A");
       expect(mockDb.event.findMany).toHaveBeenCalledWith({
+        where: {},
         include: {
           client: { select: { id: true, name: true } },
           eventType: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: "desc" },
       });
+    });
+
+    it("filtra eventos por periodo semiabierto [from, to) y ordena cronológicamente (200)", async () => {
+      const from = "2026-11-20T00:00:00.000Z";
+      const to = "2026-11-21T00:00:00.000Z";
+      const mockEventos = [
+        {
+          id: 2,
+          title: "Evento en periodo",
+          client: { id: "c1", name: "Cliente Uno" },
+          eventType: { id: 1, name: "Social" },
+          startsAt: new Date("2026-11-20T15:00:00Z"),
+          endsAt: new Date("2026-11-20T18:00:00Z"),
+          attendees: 50,
+        },
+      ];
+      mockDb.event.findMany.mockResolvedValue(mockEventos);
+
+      const response = await request(app)
+        .get(`/api/v1/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0].title).toBe("Evento en periodo");
+      expect(response.body[0].startsAt).toBe("2026-11-20T15:00:00.000Z");
+      expect(response.body[0].endsAt).toBe("2026-11-20T18:00:00.000Z");
+      expect(mockDb.event.findMany).toHaveBeenCalledWith({
+        where: {
+          startsAt: { lt: new Date(to) },
+          endsAt: { gt: new Date(from) },
+        },
+        include: {
+          client: { select: { id: true, name: true } },
+          eventType: { select: { id: true, name: true } },
+        },
+        orderBy: { startsAt: "asc" },
+      });
+    });
+
+    it("rechaza con 400 si se envía from pero falta to", async () => {
+      const response = await request(app).get("/api/v1/events?from=2026-11-20T00:00:00.000Z");
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain("El periodo de consulta debe tener fechas 'from' y 'to' válidas");
+    });
+
+    it("rechaza con 400 si to es igual o anterior a from", async () => {
+      const response = await request(app)
+        .get("/api/v1/events?from=2026-11-20T18:00:00.000Z&to=2026-11-20T17:00:00.000Z");
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain("El periodo de consulta debe tener fechas 'from' y 'to' válidas");
+    });
+
+    it("rechaza con 400 si from no es una fecha válida", async () => {
+      const response = await request(app)
+        .get("/api/v1/events?from=invalido&to=2026-11-20T17:00:00.000Z");
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain("La fecha de inicio 'from' no es válida");
     });
   });
 
