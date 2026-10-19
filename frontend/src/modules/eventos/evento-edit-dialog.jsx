@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getClientes, getTiposEvento, updateEvento } from "@/services/eventos";
+import { eventoFormSchema } from "@/schemas/eventos.schema";
 
 function toDatetimeLocal(isoString) {
   if (!isoString) return "";
@@ -26,26 +29,28 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [title, setTitle] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [eventTypeId, setEventTypeId] = useState("");
-  const [startsAt, setStartsAt] = useState("");
-  const [endsAt, setEndsAt] = useState("");
-  const [attendees, setAttendees] = useState("");
-  const [location, setLocation] = useState("");
-  const [needs, setNeeds] = useState("");
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(eventoFormSchema),
+  });
 
   useEffect(() => {
     if (evento && open) {
       setError("");
-      setTitle(evento.title || "");
-      setClientId(evento.clientId || evento.client?.id || "");
-      setEventTypeId(String(evento.eventTypeId || evento.eventType?.id || ""));
-      setStartsAt(toDatetimeLocal(evento.startsAt));
-      setEndsAt(toDatetimeLocal(evento.endsAt));
-      setAttendees(evento.attendees !== undefined ? String(evento.attendees) : "");
-      setLocation(evento.location || "");
-      setNeeds(evento.needs || "");
+      reset({
+        title: evento.title || "",
+        clientId: evento.clientId || evento.client?.id || "",
+        eventTypeId: String(evento.eventTypeId || evento.eventType?.id || ""),
+        startsAt: toDatetimeLocal(evento.startsAt),
+        endsAt: toDatetimeLocal(evento.endsAt),
+        attendees: evento.attendees !== undefined ? String(evento.attendees) : "",
+        location: evento.location || "",
+        needs: evento.needs || "",
+      });
 
       Promise.all([getClientes(), getTiposEvento()])
         .then(([cList, tList]) => {
@@ -54,40 +59,31 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
         })
         .catch(() => setError("Error al cargar clientes o tipos de evento."));
     }
-  }, [evento, open]);
+  }, [evento, open, reset]);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function onSubmit(data) {
+    if (!evento?.id) return;
     setError("");
-
-    if (!title || !clientId || !eventTypeId || !startsAt || !endsAt || !attendees) {
-      setError("Completa todos los campos obligatorios.");
-      return;
-    }
-
-    const start = new Date(startsAt);
-    const end = new Date(endsAt);
-    if (end <= start) {
-      setError("La fecha de término debe ser posterior al inicio.");
-      return;
-    }
+    const start = new Date(data.startsAt);
+    const end = new Date(data.endsAt);
 
     setLoading(true);
     try {
       const updated = await updateEvento(evento.id, {
-        title: title.trim(),
-        clientId: String(clientId).trim(),
-        eventTypeId: parseInt(eventTypeId, 10),
+        title: data.title.trim(),
+        clientId: String(data.clientId).trim(),
+        eventTypeId: parseInt(data.eventTypeId, 10),
         startsAt: start.toISOString(),
         endsAt: end.toISOString(),
-        attendees: parseInt(attendees, 10),
-        location: location.trim() || null,
-        needs: needs.trim() || null,
+        attendees: parseInt(data.attendees, 10),
+        location: data.location?.trim() || null,
+        needs: data.needs?.trim() || null,
       });
 
       onOpenChange(false);
       onSaved?.(updated);
     } catch (err) {
+      // Conservar datos y mostrar error (ej: 409 conflicto de espacio)
       setError(err.message || "Error al actualizar el evento.");
     } finally {
       setLoading(false);
@@ -100,30 +96,37 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
         <DialogHeader>
           <DialogTitle>Editar evento</DialogTitle>
         </DialogHeader>
-        {error && <p className="text-sm text-red-500 bg-red-500/10 p-2 rounded" role="alert">{error}</p>}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <p className="text-sm text-red-500 bg-red-500/10 p-2 rounded" role="alert">
+            {error}
+          </p>
+        )}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="space-y-1">
-            <Label htmlFor="edit-title">Título del evento</Label>
+            <Label htmlFor="edit-title">Título del evento *</Label>
             <Input
               id="edit-title"
               placeholder="Ej: Gala Anual 2026"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              minLength={3}
-              maxLength={160}
-              required
+              {...register("title")}
+              aria-invalid={Boolean(errors.title)}
+              aria-describedby={errors.title ? "edit-title-error" : undefined}
             />
+            {errors.title && (
+              <p className="text-xs text-red-500" id="edit-title-error">
+                {errors.title.message}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="edit-client">Cliente</Label>
+              <Label htmlFor="edit-client">Cliente *</Label>
               <select
                 id="edit-client"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                required
+                {...register("clientId")}
+                aria-invalid={Boolean(errors.clientId)}
+                aria-describedby={errors.clientId ? "edit-client-error" : undefined}
               >
                 <option value="">Seleccionar...</option>
                 {clientes.map((c) => (
@@ -132,16 +135,21 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
                   </option>
                 ))}
               </select>
+              {errors.clientId && (
+                <p className="text-xs text-red-500" id="edit-client-error">
+                  {errors.clientId.message}
+                </p>
+              )}
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="edit-eventType">Tipo de evento</Label>
+              <Label htmlFor="edit-eventType">Tipo de evento *</Label>
               <select
                 id="edit-eventType"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                value={eventTypeId}
-                onChange={(e) => setEventTypeId(e.target.value)}
-                required
+                {...register("eventTypeId")}
+                aria-invalid={Boolean(errors.eventTypeId)}
+                aria-describedby={errors.eventTypeId ? "edit-eventType-error" : undefined}
               >
                 <option value="">Seleccionar...</option>
                 {tipos.map((t) => (
@@ -150,45 +158,65 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
                   </option>
                 ))}
               </select>
+              {errors.eventTypeId && (
+                <p className="text-xs text-red-500" id="edit-eventType-error">
+                  {errors.eventTypeId.message}
+                </p>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="edit-startsAt">Fecha/Hora inicio</Label>
+              <Label htmlFor="edit-startsAt">Fecha/Hora inicio *</Label>
               <Input
                 id="edit-startsAt"
                 type="datetime-local"
-                value={startsAt}
-                onChange={(e) => setStartsAt(e.target.value)}
-                required
+                {...register("startsAt")}
+                aria-invalid={Boolean(errors.startsAt)}
+                aria-describedby={errors.startsAt ? "edit-startsAt-error" : undefined}
               />
+              {errors.startsAt && (
+                <p className="text-xs text-red-500" id="edit-startsAt-error">
+                  {errors.startsAt.message}
+                </p>
+              )}
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="edit-endsAt">Fecha/Hora término</Label>
+              <Label htmlFor="edit-endsAt">Fecha/Hora término *</Label>
               <Input
                 id="edit-endsAt"
                 type="datetime-local"
-                value={endsAt}
-                onChange={(e) => setEndsAt(e.target.value)}
-                required
+                {...register("endsAt")}
+                aria-invalid={Boolean(errors.endsAt)}
+                aria-describedby={errors.endsAt ? "edit-endsAt-error" : undefined}
               />
+              {errors.endsAt && (
+                <p className="text-xs text-red-500" id="edit-endsAt-error">
+                  {errors.endsAt.message}
+                </p>
+              )}
             </div>
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="edit-attendees">Cantidad de asistentes</Label>
+            <Label htmlFor="edit-attendees">Cantidad de asistentes *</Label>
             <Input
               id="edit-attendees"
               type="number"
               min={1}
               max={100000}
-              placeholder="Ej: 150"
-              value={attendees}
-              onChange={(e) => setAttendees(e.target.value)}
-              required
+              placeholder="Ej: 50"
+              {...register("attendees")}
+              aria-invalid={Boolean(errors.attendees)}
+              aria-describedby={errors.attendees ? "edit-attendees-error" : undefined}
             />
+            {errors.attendees && (
+              <p className="text-xs text-red-500" id="edit-attendees-error">
+                {errors.attendees.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1">
@@ -196,8 +224,7 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
             <Input
               id="edit-location"
               placeholder="Ej: Salón Principal"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              {...register("location")}
             />
           </div>
 
@@ -206,8 +233,7 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
             <Input
               id="edit-needs"
               placeholder="Ej: Iluminación cálida y microfonía"
-              value={needs}
-              onChange={(e) => setNeeds(e.target.value)}
+              {...register("needs")}
             />
           </div>
 
