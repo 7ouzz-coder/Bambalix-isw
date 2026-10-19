@@ -12,7 +12,8 @@ export const crearEventoSchema = z
     eventTypeId: z
       .number({ required_error: "El tipo de evento es obligatorio" })
       .int("El ID de tipo de evento debe ser un entero")
-      .positive("El ID de tipo de evento debe ser positivo"),
+      .positive("El ID de tipo de evento debe ser positivo")
+      .max(2147483647, "El ID de tipo de evento fuera de rango"),
     startsAt: z
       .string({ required_error: "La fecha de inicio es obligatoria" })
       .refine((val) => !isNaN(Date.parse(val)), {
@@ -45,6 +46,30 @@ export const crearEventoSchema = z
     }
   );
 
+export const eventoIdParamSchema = z
+  .string({ required_error: "El ID de evento es obligatorio" })
+  .trim()
+  .superRefine((val, ctx) => {
+    if (!/^[1-9]\d*$/.test(val)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "ID de evento inválido",
+      });
+      return;
+    }
+    const num = Number(val);
+    if (!Number.isSafeInteger(num) || num > 2147483647) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "ID de evento fuera de rango",
+      });
+    }
+  });
+
+export const editarEventoParamsSchema = z.object({
+  id: eventoIdParamSchema,
+});
+
 export const editarEventoSchema = z
   .object({
     title: z
@@ -60,6 +85,7 @@ export const editarEventoSchema = z
       .number()
       .int("El ID de tipo de evento debe ser un entero")
       .positive("El ID de tipo de evento debe ser positivo")
+      .max(2147483647, "El ID de tipo de evento fuera de rango")
       .optional(),
     startsAt: z
       .string()
