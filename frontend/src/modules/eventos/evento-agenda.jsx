@@ -21,7 +21,7 @@ function toDatetimeLocal(d) {
 function getDefaultPeriod() {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 14, 23, 59, 59);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 14, 0, 0, 0);
   return {
     from: toDatetimeLocal(start),
     to: toDatetimeLocal(end),
@@ -45,6 +45,10 @@ export function EventoAgenda({ revision, onEventoUpdated }) {
     }
     const f = new Date(fromDate);
     const t = new Date(toDate);
+    if (isNaN(f.getTime()) || isNaN(t.getTime())) {
+      setError("Las fechas seleccionadas no son válidas.");
+      return;
+    }
     if (t <= f) {
       setError("La fecha de término debe ser posterior a la de inicio.");
       return;
@@ -78,7 +82,11 @@ export function EventoAgenda({ revision, onEventoUpdated }) {
   function handlePreset(days) {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 23, 59, 59);
+    // Periodo semiabierto coherente [start, end) con límite superior exclusivo
+    // 1 día ("Hoy"): [hoy 00:00, mañana 00:00) exactamente 24 horas sin el día extra
+    // 7 días: [hoy 00:00, hoy+7 00:00)
+    // 30 días: [hoy 00:00, hoy+30 00:00) contemplando cambio de mes automáticamente
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 0, 0, 0);
     const fStr = toDatetimeLocal(start);
     const tStr = toDatetimeLocal(end);
     setFrom(fStr);
