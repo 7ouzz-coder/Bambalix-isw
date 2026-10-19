@@ -32,3 +32,20 @@ export function validateQuery(schema) {
   };
 }
 
+export function validateParams(schema) {
+  return (req, res, next) => {
+    try {
+      req.params = schema.parse(req.params);
+      next();
+    } catch (error) {
+      if (error instanceof z.ZodError || error?.name === "ZodError" || Array.isArray(error?.issues)) {
+        const issues = error.issues || error.errors || [];
+        const mensaje = issues.map((e) => e.message).filter(Boolean).join("; ");
+        return res.status(400).json({ message: mensaje || "Parámetro inválido" });
+      }
+      next(error);
+    }
+  };
+}
+
+

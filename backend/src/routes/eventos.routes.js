@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { validateBody, validateQuery } from "../middlewares/eventos.validation.js";
+import { validateBody, validateQuery, validateParams } from "../middlewares/eventos.validation.js";
 import {
   crearEventoSchema,
+  editarEventoParamsSchema,
   editarEventoSchema,
   consultarAgendaSchema,
 } from "../schemas/eventos.schema.js";
@@ -25,7 +26,7 @@ export function eventosRoutes(db) {
   router.get("/types", listTiposEventoController(db));
 
   // PATCH /api/v1/events/:id — Editar evento
-  router.patch("/:id", validateBody(editarEventoSchema), updateEventoController(db));
+  router.patch("/:id", validateParams(editarEventoParamsSchema), validateBody(editarEventoSchema), updateEventoController(db));
 
   return router;
 }
