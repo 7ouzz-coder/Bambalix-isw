@@ -23,42 +23,78 @@ export class ConflictError extends Error {
   }
 }
 
+export function normalizeSpace(location) {
+  if (!location || typeof location !== "string") return null;
+  const trimmed = location.trim();
+  if (!trimmed) return null;
+  return trimmed.replace(/\s+/g, " ");
+}
+
+export function getSpaceCanonicalKey(loc) {
+  if (!loc || typeof loc !== "string") return "";
+  return loc
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
 export async function checkSpaceConflict(tx, { location, startsAt, endsAt, excludeId = null }) {
-  if (!location || typeof location !== "string" || !location.trim()) {
+  const normalizedLocation = normalizeSpace(location);
+  if (!normalizedLocation) {
     return null;
   }
 
-  const normalizedLocation = location.trim();
+  const spaceKey = getSpaceCanonicalKey(normalizedLocation);
 
-  // Bloqueo consultivo de transacción en PostgreSQL para evitar dos reservas concurrentes del mismo espacio
+  // Bloqueo consultivo de transacción en PostgreSQL con clave canónica del espacio
+  // Sin catch silencioso para garantizar protección transaccional real en PostgreSQL
   if (typeof tx.$queryRaw === "function") {
-    try {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('event_space_' || lower(${normalizedLocation})))`;
-    } catch {
-      // Ignorar si el motor o mock no soporta la función pg_advisory_xact_lock
-    }
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('event_space_' || ${spaceKey}))`;
   }
 
-  const where = {
-    location: { equals: normalizedLocation, mode: "insensitive" },
-    startsAt: { lt: endsAt },
-    endsAt: { gt: startsAt },
-  };
-
-  if (excludeId) {
-    where.id = { not: excludeId };
+  let conflictingEvent = null;
+  if (typeof tx.event.findFirst === "function") {
+    conflictingEvent = await tx.event.findFirst({
+      where: {
+        location: { equals: normalizedLocation, mode: "insensitive" },
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: {
+        id: true,
+        title: true,
+        location: true,
+        startsAt: true,
+        endsAt: true,
+      },
+    });
   }
 
-  const conflictingEvent = await tx.event.findFirst({
-    where,
-    select: {
-      id: true,
-      title: true,
-      location: true,
-      startsAt: true,
-      endsAt: true,
-    },
-  });
+  if (!conflictingEvent && typeof tx.event.findMany === "function") {
+    const rawCandidates = await tx.event.findMany({
+      where: {
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+        location: { not: null },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: {
+        id: true,
+        title: true,
+        location: true,
+        startsAt: true,
+        endsAt: true,
+      },
+    });
+    const candidateEvents = Array.isArray(rawCandidates) ? rawCandidates : [];
+    conflictingEvent =
+      candidateEvents.find(
+        (ev) => getSpaceCanonicalKey(ev.location) === spaceKey
+      ) || null;
+  }
 
   if (conflictingEvent) {
     const fStart = new Date(conflictingEvent.startsAt).toISOString();
@@ -88,7 +124,7 @@ export async function createEvento(db, datos) {
 
     const startsAt = new Date(datos.startsAt);
     const endsAt = new Date(datos.endsAt);
-    const location = datos.location && datos.location.trim() ? datos.location.trim() : null;
+    const location = normalizeSpace(datos.location);
 
     if (location) {
       await checkSpaceConflict(tx, {
@@ -107,7 +143,7 @@ export async function createEvento(db, datos) {
         endsAt,
         attendees: datos.attendees,
         location,
-        needs: datos.needs || null,
+        needs: datos.needs && typeof datos.needs === "string" && datos.needs.trim() ? datos.needs.trim() : null,
       },
       include: {
         client: { select: { id: true, name: true } },
@@ -144,14 +180,23 @@ export async function listTiposEvento(db) {
 }
 
 export async function updateEvento(db, id, datos) {
-  const numericId = parseInt(id, 10);
-  if (isNaN(numericId) || numericId <= 0) {
+  const strId = String(id).trim();
+  if (!/^[1-9]\d*$/.test(strId)) {
+    throw new ValidationError("ID de evento inválido");
+  }
+  const numericId = Number(strId);
+  if (!Number.isSafeInteger(numericId) || numericId > 2147483647) {
     throw new ValidationError("ID de evento inválido");
   }
 
   const runner = typeof db.$transaction === "function" ? (cb) => db.$transaction(cb) : (cb) => cb(db);
 
   return runner(async (tx) => {
+    // Bloqueo exclusivo de fila en PostgreSQL para evitar carreras concurrentes al editar el mismo evento
+    if (typeof tx.$queryRaw === "function") {
+      await tx.$queryRaw`SELECT id FROM events WHERE id = ${numericId} FOR UPDATE`;
+    }
+
     const existing = await tx.event.findUnique({ where: { id: numericId } });
     if (!existing) {
       throw new NotFoundError("Evento no encontrado");
@@ -179,7 +224,7 @@ export async function updateEvento(db, id, datos) {
 
     const location =
       datos.location !== undefined
-        ? (datos.location && datos.location.trim() ? datos.location.trim() : null)
+        ? normalizeSpace(datos.location)
         : existing.location;
 
     if (location) {
@@ -199,7 +244,12 @@ export async function updateEvento(db, id, datos) {
     if (datos.endsAt !== undefined) updateData.endsAt = endsAt;
     if (datos.attendees !== undefined) updateData.attendees = datos.attendees;
     if (datos.location !== undefined) updateData.location = location;
-    if (datos.needs !== undefined) updateData.needs = datos.needs;
+    if (datos.needs !== undefined) {
+      updateData.needs =
+        datos.needs && typeof datos.needs === "string" && datos.needs.trim()
+          ? datos.needs.trim()
+          : null;
+    }
 
     return tx.event.update({
       where: { id: numericId },
@@ -211,5 +261,6 @@ export async function updateEvento(db, id, datos) {
     });
   });
 }
+
 
 
