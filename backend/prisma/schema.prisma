@@ -19,14 +19,19 @@ model Resource {
 }
 
 model Client {
-  id        String   @id @default(cuid())
-  name      String
-  email     String
-  rut       String?  @unique
-  phone     String?
-  address   String?
-  events    Event[]
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  name            String
+  email           String
+  rut             String?  @unique
+  phone           String?
+  address         String?
+  clientType      String   @default("persona")
+  contactName     String?
+  contactPhone    String?
+  contactEmail    String?
+  contactPosition String?
+  events          Event[]
+  createdAt       DateTime @default(now())
 
   @@index([name])
 }
