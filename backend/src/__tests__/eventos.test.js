@@ -421,5 +421,113 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
       expect(response.status).toBe(200);
       expect(mockDb.event.update).toHaveBeenCalled();
     });
+
+    it("rechaza con 400 y no toca la base de datos si el ID tiene sufijo alfanumérico (ej: 5abc)", async () => {
+      const response = await request(app)
+        .patch("/api/v1/events/5abc")
+        .set("Origin", webOrigin)
+        .send({ title: "Título de prueba" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe("ID de evento inválido");
+      expect(mockDb.event.findUnique).not.toHaveBeenCalled();
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("rechaza con 400 si el ID tiene decimales (ej: 5.5)", async () => {
+      const response = await request(app)
+        .patch("/api/v1/events/5.5")
+        .set("Origin", webOrigin)
+        .send({ title: "Título de prueba" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe("ID de evento inválido");
+      expect(mockDb.event.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("rechaza con 400 si el ID es 0 o negativo", async () => {
+      const resZero = await request(app)
+        .patch("/api/v1/events/0")
+        .set("Origin", webOrigin)
+        .send({ title: "Título de prueba" });
+      expect(resZero.status).toBe(400);
+      expect(resZero.body.message).toBe("ID de evento inválido");
+
+      const resNeg = await request(app)
+        .patch("/api/v1/events/-1")
+        .set("Origin", webOrigin)
+        .send({ title: "Título de prueba" });
+      expect(resNeg.status).toBe(400);
+      expect(resNeg.body.message).toBe("ID de evento inválido");
+      expect(mockDb.event.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("rechaza con 400 si el ID está fuera del rango entero de 32 bits", async () => {
+      const response = await request(app)
+        .patch("/api/v1/events/99999999999999999999")
+        .set("Origin", webOrigin)
+        .send({ title: "Título de prueba" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe("ID de evento fuera de rango");
+      expect(mockDb.event.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("ejecuta bloqueo de fila FOR UPDATE antes de consultar y validar el evento", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      mockDb.event.findFirst.mockResolvedValue(null);
+      mockDb.event.update.mockResolvedValue({
+        ...existingEvento,
+        title: "Edición Protegida",
+        client: { id: "client-1", name: "Empresa Uno" },
+        eventType: { id: 2, name: "Social" },
+      });
+
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({ title: "Edición Protegida" });
+
+      expect(response.status).toBe(200);
+      expect(mockDb.$queryRaw).toHaveBeenCalled();
+    });
+
+    it("detecta conflicto de espacio usando identidad canónica estable (acentos y espacios redundantes)", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      mockDb.event.findFirst.mockResolvedValue(null);
+      mockDb.event.findMany.mockResolvedValue([
+        {
+          id: 88,
+          title: "Evento en Salón",
+          location: "Salón Principal",
+          startsAt: new Date("2026-11-20T19:00:00.000Z"),
+          endsAt: new Date("2026-11-20T22:00:00.000Z"),
+        },
+      ]);
+
+      // Se envía con escritura libre distinta: sin tilde y con espacios adicionales "salon   principal"
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({ location: "  salon   principal  ", startsAt: "2026-11-20T19:30:00.000Z" });
+
+      expect(response.status).toBe(409);
+      expect(response.body.message).toContain("Conflicto de programación");
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("propaga el error si falla el bloqueo de PostgreSQL en lugar de silenciarlo", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      mockDb.$queryRaw.mockRejectedValue(new Error("Deadlock detected in lock"));
+
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({ title: "Edición con fallo de bloqueo" });
+
+      expect(response.status).toBe(500);
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
   });
 });
+
