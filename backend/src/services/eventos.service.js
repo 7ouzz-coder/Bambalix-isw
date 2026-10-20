@@ -50,8 +50,9 @@ export async function checkSpaceConflict(tx, { location, startsAt, endsAt, exclu
 
   // Bloqueo consultivo de transacción en PostgreSQL con clave canónica del espacio
   // Sin catch silencioso para garantizar protección transaccional real en PostgreSQL
+  // Se evalúa IS NOT NULL para que PostgreSQL devuelva un tipo boolean deserializable por Prisma (evitando error con tipo void)
   if (typeof tx.$queryRaw === "function") {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('event_space_' || ${spaceKey}))`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('event_space_' || ${spaceKey})) IS NOT NULL AS locked`;
   }
 
   let conflictingEvent = null;
