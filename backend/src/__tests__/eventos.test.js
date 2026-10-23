@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../app.js";
+import { updateEvento } from "../services/eventos.service.js";
 
 describe("Módulo Eventos - Rutas y Servicios", () => {
   let mockDb;
@@ -599,6 +600,23 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
         .send({ title: "Edición con fallo de bloqueo" });
 
       expect(response.status).toBe(500);
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("rechaza la reprogramación completa si el validador de recursos asignados falla", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      const onScheduleChangeMock = vi.fn().mockRejectedValue(new Error("Conflicto de equipos: equipo asignado no disponible"));
+
+      await expect(
+        updateEvento(
+          mockDb,
+          5,
+          { startsAt: "2026-11-21T18:00:00.000Z", endsAt: "2026-11-21T23:00:00.000Z" },
+          { onScheduleChange: onScheduleChangeMock }
+        )
+      ).rejects.toThrow("Conflicto de equipos: equipo asignado no disponible");
+
+      expect(onScheduleChangeMock).toHaveBeenCalled();
       expect(mockDb.event.update).not.toHaveBeenCalled();
     });
   });

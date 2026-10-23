@@ -209,7 +209,7 @@ export async function listEventosPublicos(db, filters = {}) {
   });
 }
 
-export async function updateEvento(db, id, datos) {
+export async function updateEvento(db, id, datos, options = {}) {
   const strId = String(id).trim();
   if (!/^[1-9]\d*$/.test(strId)) {
     throw new ValidationError("ID de evento inválido");
@@ -263,6 +263,21 @@ export async function updateEvento(db, id, datos) {
         startsAt,
         endsAt,
         excludeId: numericId,
+      });
+    }
+
+    const isScheduleChange =
+      (datos.startsAt !== undefined && startsAt.getTime() !== new Date(existing.startsAt).getTime()) ||
+      (datos.endsAt !== undefined && endsAt.getTime() !== new Date(existing.endsAt).getTime());
+
+    // Coordinación de reprogramación consistente con recursos (módulo de Guillermo):
+    // Si se produce cambio de horario y se provee el validador/actualizador transaccional,
+    // se ejecuta dentro de este mismo tx. Si falla, el error aborta la transacción completa.
+    if (isScheduleChange && typeof options.onScheduleChange === "function") {
+      await options.onScheduleChange(tx, {
+        eventId: numericId,
+        previousSchedule: { startsAt: existing.startsAt, endsAt: existing.endsAt },
+        newSchedule: { startsAt, endsAt },
       });
     }
 
