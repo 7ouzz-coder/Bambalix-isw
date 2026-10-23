@@ -180,6 +180,35 @@ export async function listTiposEvento(db) {
   });
 }
 
+/**
+ * Consulta de agenda externa / pública para clientes.
+ * Entrega únicamente eventos y campos autorizados filtrados estrictamente desde el backend.
+ * No expone datos de clientes (id, nombre, contacto), notas internas (needs),
+ * conteo de asistentes ni información comercial.
+ */
+export async function listEventosPublicos(db, filters = {}) {
+  const where = {};
+  let orderBy = { startsAt: "asc" };
+
+  if (filters.from && filters.to) {
+    where.startsAt = { lt: new Date(filters.to) };
+    where.endsAt = { gt: new Date(filters.from) };
+  }
+
+  return db.event.findMany({
+    where,
+    select: {
+      id: true,
+      title: true,
+      startsAt: true,
+      endsAt: true,
+      location: true,
+      eventType: { select: { id: true, name: true } },
+    },
+    orderBy,
+  });
+}
+
 export async function updateEvento(db, id, datos) {
   const strId = String(id).trim();
   if (!/^[1-9]\d*$/.test(strId)) {

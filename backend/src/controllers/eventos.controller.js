@@ -4,6 +4,7 @@ import {
   ConflictError,
   createEvento,
   listEventos,
+  listEventosPublicos,
   listTiposEvento,
   updateEvento,
 } from "../services/eventos.service.js";
@@ -30,6 +31,18 @@ export function listEventosController(db) {
     try {
       const query = req.validatedQuery || req.query || {};
       const eventos = await listEventos(db, query);
+      res.json(eventos);
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+export function listEventosPublicosController(db) {
+  return async (req, res, next) => {
+    try {
+      const query = req.validatedQuery || req.query || {};
+      const eventos = await listEventosPublicos(db, query);
       res.json(eventos);
     } catch (error) {
       next(error);

@@ -52,6 +52,24 @@ export async function getEventos(params = {}) {
   }
 }
 
+export async function getEventosPublicos(params = {}) {
+  try {
+    const query = new URLSearchParams();
+    if (params.from) query.set("from", params.from);
+    if (params.to) query.set("to", params.to);
+    const qs = query.toString();
+    const url = qs ? `${API_BASE}/events/public?${qs}` : `${API_BASE}/events/public`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.message || "Error al consultar la agenda pública");
+    }
+    return res.json();
+  } catch (error) {
+    handleNetworkError(error);
+  }
+}
+
 export async function createEvento(data) {
   let res;
   try {
