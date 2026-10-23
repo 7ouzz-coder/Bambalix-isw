@@ -249,6 +249,79 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
     });
   });
 
+  describe("GET /api/v1/events/public", () => {
+    it("retorna exclusivamente campos públicos autorizados y no expone clientes, notas o asistentes (200)", async () => {
+      const mockPublicEventos = [
+        {
+          id: 1,
+          title: "Festival Abierto",
+          startsAt: new Date("2026-12-01T10:00:00Z"),
+          endsAt: new Date("2026-12-01T12:00:00Z"),
+          location: "Parque Central",
+          eventType: { id: 1, name: "Comunitario" },
+        },
+      ];
+      mockDb.event.findMany.mockResolvedValue(mockPublicEventos);
+
+      const response = await request(app).get("/api/v1/events/public");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveLength(1);
+      const ev = response.body[0];
+      expect(ev.title).toBe("Festival Abierto");
+      expect(ev.location).toBe("Parque Central");
+      expect(ev.client).toBeUndefined();
+      expect(ev.clientId).toBeUndefined();
+      expect(ev.needs).toBeUndefined();
+      expect(ev.attendees).toBeUndefined();
+      expect(mockDb.event.findMany).toHaveBeenCalledWith({
+        where: {},
+        select: {
+          id: true,
+          title: true,
+          startsAt: true,
+          endsAt: true,
+          location: true,
+          eventType: { select: { id: true, name: true } },
+        },
+        orderBy: { startsAt: "asc" },
+      });
+    });
+
+    it("filtra eventos públicos por periodo semiabierto (200)", async () => {
+      const from = "2026-12-01T00:00:00.000Z";
+      const to = "2026-12-02T00:00:00.000Z";
+      mockDb.event.findMany.mockResolvedValue([]);
+
+      const response = await request(app)
+        .get(`/api/v1/events/public?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+
+      expect(response.status).toBe(200);
+      expect(mockDb.event.findMany).toHaveBeenCalledWith({
+        where: {
+          startsAt: { lt: new Date(to) },
+          endsAt: { gt: new Date(from) },
+        },
+        select: {
+          id: true,
+          title: true,
+          startsAt: true,
+          endsAt: true,
+          location: true,
+          eventType: { select: { id: true, name: true } },
+        },
+        orderBy: { startsAt: "asc" },
+      });
+    });
+
+    it("valida periodos en la consulta pública y rechaza rango invertido con 400", async () => {
+      const response = await request(app)
+        .get("/api/v1/events/public?from=2026-12-01T15:00:00.000Z&to=2026-12-01T10:00:00.000Z");
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain("El periodo de consulta debe tener fechas 'from' y 'to' válidas");
+    });
+  });
+
   describe("GET /api/v1/events/types", () => {
     it("retorna tipos de eventos ordenados por nombre (200)", async () => {
       const mockTypes = [
