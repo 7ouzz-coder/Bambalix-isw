@@ -619,6 +619,29 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
       expect(onScheduleChangeMock).toHaveBeenCalled();
       expect(mockDb.event.update).not.toHaveBeenCalled();
     });
+
+    it("responde 409 y no modifica el evento si se intenta cambiar el horario sin validador de recursos conectado", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({ startsAt: "2026-11-21T18:00:00.000Z", endsAt: "2026-11-21T23:00:00.000Z" });
+
+      expect(response.status).toBe(409);
+      expect(response.body.message).toContain("No se puede cambiar el horario sin validar las asignaciones de equipos");
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("rechaza con 400 si el cliente intenta inyectar campos no reconocidos o de estado comercial (status, etc.)", async () => {
+      const response = await request(app)
+        .patch("/api/v1/events/5")
+        .set("Origin", webOrigin)
+        .send({ status: "CONFIRMADO" });
+
+      expect(response.status).toBe(400);
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
   });
 });
 
