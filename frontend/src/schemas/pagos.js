@@ -8,7 +8,8 @@ export const paymentFormSchema = z.object({
   amount: z.coerce
     .number({ invalid_type_error: "Ingresa un monto numérico válido" })
     .positive("El monto debe ser mayor a 0")
-    .max(999999999.99, "El monto excede el límite permitido"),
+    .max(999999999.99, "El monto excede el límite permitido")
+    .refine((value) => /^\d+(\.\d{1,2})?$/.test(String(value)), "El monto admite hasta dos decimales"),
   reference: z
     .string()
     .trim()

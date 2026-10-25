@@ -10,6 +10,18 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Servicio y validaciones de Pagos en frontend", () => {
+  it.each(["0.001", "1.005", "0", "-1"])(
+    "rechaza el importe inválido %s",
+    (amount) => {
+      expect(
+        paymentFormSchema.safeParse({
+          quoteId: "quote_100",
+          method: "EFECTIVO",
+          amount,
+        }).success,
+      ).toBe(false);
+    },
+  );
   it("valida el esquema paymentFormSchema correctamente", () => {
     const pagoEfectivoValido = paymentFormSchema.safeParse({
       quoteId: "quote_100",
@@ -65,13 +77,19 @@ describe("Servicio y validaciones de Pagos en frontend", () => {
   it("envía solicitud POST para verificar un pago sin cabeceras simuladas", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ id: "pay_1", status: "VERIFICADO", verifiedBy: "Finanzas" }),
+      json: async () => ({
+        id: "pay_1",
+        status: "VERIFICADO",
+        verifiedBy: "Finanzas",
+      }),
     });
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await verifyPayment("pay_1");
     expect(res.status).toBe("VERIFICADO");
-    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/v1\/payments\/pay_1\/verify$/);
+    expect(fetchMock.mock.calls[0][0]).toMatch(
+      /\/api\/v1\/payments\/pay_1\/verify$/,
+    );
   });
 
   it("obtiene el resumen financiero de una cotización", async () => {
@@ -88,6 +106,8 @@ describe("Servicio y validaciones de Pagos en frontend", () => {
     const summary = await getQuoteFinancialSummary("quote_100");
     expect(summary.totalCotizacion).toBe(500000);
     expect(summary.saldoPendiente).toBe(300000);
-    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/v1\/payments\/quote\/quote_100\/summary$/);
+    expect(fetchMock.mock.calls[0][0]).toMatch(
+      /\/api\/v1\/payments\/quote\/quote_100\/summary$/,
+    );
   });
 });
