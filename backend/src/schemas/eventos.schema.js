@@ -32,6 +32,7 @@ export const crearEventoSchema = z
     location: z.string().optional(),
     needs: z.string().optional(),
   })
+  .strict()
   .refine(
     (data) => {
       if (!data.startsAt || !data.endsAt) return true;
@@ -108,6 +109,7 @@ export const editarEventoSchema = z
     location: z.string().nullable().optional(),
     needs: z.string().nullable().optional(),
   })
+  .strict()
   .refine(
     (data) => {
       if (!data.startsAt || !data.endsAt) return true;

@@ -270,13 +270,18 @@ export async function updateEvento(db, id, datos, options = {}) {
       (datos.startsAt !== undefined && startsAt.getTime() !== new Date(existing.startsAt).getTime()) ||
       (datos.endsAt !== undefined && endsAt.getTime() !== new Date(existing.endsAt).getTime());
 
-    // Coordinación de reprogramación consistente con recursos (módulo de Guillermo):
-    // Si se produce cambio de horario y se provee el validador/actualizador transaccional,
-    // se ejecuta dentro de este mismo tx. Si falla, el error aborta la transacción completa.
-    if (isScheduleChange && typeof options.onScheduleChange === "function") {
+    if (isScheduleChange) {
+      if (typeof options.onScheduleChange !== "function") {
+        throw new ConflictError(
+          "No se puede cambiar el horario sin validar las asignaciones de equipos"
+        );
+      }
       await options.onScheduleChange(tx, {
         eventId: numericId,
-        previousSchedule: { startsAt: existing.startsAt, endsAt: existing.endsAt },
+        previousSchedule: {
+          startsAt: existing.startsAt,
+          endsAt: existing.endsAt,
+        },
         newSchedule: { startsAt, endsAt },
       });
     }
