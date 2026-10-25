@@ -11,7 +11,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { approveQuote, getQuotes, submitQuoteForReview } from "@/services/cotizaciones";
+import { getQuotes, submitQuoteForReview } from "@/services/cotizaciones";
+import styles from "./quote-list.module.css";
 
 export function QuoteList({ revision, onStatusChanged }) {
   const [state, setState] = useState({ loading: true, items: [], error: "" });
@@ -51,22 +52,6 @@ export function QuoteList({ revision, onStatusChanged }) {
     }
   }
 
-  async function handleApprove(quoteId) {
-    setActionLoading(quoteId);
-    try {
-      const updated = await approveQuote(quoteId);
-      setState((prev) => ({
-        ...prev,
-        items: prev.items.map((q) => (q.id === quoteId ? { ...q, ...updated } : q)),
-      }));
-      if (onStatusChanged) onStatusChanged(`Cotización ${updated.code || quoteId} aprobada por Gerencia.`);
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setActionLoading(null);
-    }
-  }
-
   function getStatusBadge(status) {
     switch (status) {
       case "BORRADOR":
@@ -81,7 +66,10 @@ export function QuoteList({ revision, onStatusChanged }) {
   }
 
   return (
-    <section className="equipment-ledger" aria-labelledby="quotes-list-heading" aria-busy={state.loading}>
+    <section className={`equipment-ledger ${styles.ledger}`} aria-labelledby="quotes-list-heading" aria-busy={state.loading}>
+      <p className="p-4 text-sm text-muted-foreground">
+        La aprobación requiere una sesión interna de gerente.
+      </p>
       <div className="ledger-header">
         <div>
           <h2 id="quotes-list-heading">Cotizaciones comerciales</h2>
@@ -132,7 +120,7 @@ export function QuoteList({ revision, onStatusChanged }) {
               <TableHead>Código</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Evento</TableHead>
-              <TableHead>Total (IVA inc.)</TableHead>
+              <TableHead>Total</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
@@ -170,14 +158,13 @@ export function QuoteList({ revision, onStatusChanged }) {
                       </Button>
                     )}
 
-                    {quote.status !== "APROBADA" && (
+                    {quote.status === "EN_REVISION" && (
                       <Button
                         variant="default"
                         size="sm"
-                        disabled={actionLoading === quote.id}
-                        onClick={() => handleApprove(quote.id)}
+                        disabled
                         className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                        title="Aprobar como Gerente mediante identidad autenticada"
+                        title="Requiere una sesión interna de gerente"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                         Aprobar
@@ -212,7 +199,7 @@ export function QuoteList({ revision, onStatusChanged }) {
               ) : null}
 
               <div>
-                <h4 className="text-sm font-semibold mb-2">Ítems congelados históricamente:</h4>
+                <h4 className="text-sm font-semibold mb-2">Ítems de la cotización</h4>
                 <div className="border rounded-md overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-muted text-xs text-muted-foreground uppercase border-b">
@@ -235,7 +222,7 @@ export function QuoteList({ revision, onStatusChanged }) {
                     </tbody>
                     <tfoot className="bg-muted/50 font-bold border-t">
                       <tr>
-                        <td colSpan={3} className="p-2 text-right">Total (IVA inc.):</td>
+                        <td colSpan={3} className="p-2 text-right">Total:</td>
                         <td className="p-2 text-right text-base">${Number(selectedQuote.total).toLocaleString("es-CL")}</td>
                       </tr>
                     </tfoot>

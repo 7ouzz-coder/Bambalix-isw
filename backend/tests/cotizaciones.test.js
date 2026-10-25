@@ -322,6 +322,16 @@ describe("Requisito 2: Elaboración de cotizaciones", () => {
   });
 
   describe("Aprobación gerencial y autenticación segura", () => {
+    it.each([
+      { id: "interno_1", role: "admin", authenticated: true },
+      { id: "interno_1", role: "manager", authenticated: true },
+      { id: "interno_1", role: "gerente", authenticated: "true" },
+      { role: "gerente", authenticated: true },
+    ])("el servicio no amplía el permiso gerencial ni acepta identidades incompletas", async (identity) => {
+      const { db } = setup();
+      await expect(quoteService(db).aprobar("quote_en_revision", identity)).rejects.toMatchObject({ statusCode: 403 });
+      expect(db.quote.updateMany).not.toHaveBeenCalled();
+    });
     it("deniega la aprobación si se intentan inyectar cabeceras simuladas (x-user-role)", async () => {
       const { api, db } = setup();
       const response = await api
