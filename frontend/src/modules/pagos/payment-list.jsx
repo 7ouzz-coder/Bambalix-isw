@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { Banknote, CheckCircle, CreditCard, DollarSign, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getPayments, verifyPayment } from "@/services/pagos";
+import { getPayments } from "@/services/pagos";
+import styles from "./payment-list.module.css";
 
-export function PaymentList({ revision, onPaymentVerified }) {
+export function PaymentList({ revision }) {
   const [state, setState] = useState({ loading: true, items: [], error: "" });
   const [attempt, setAttempt] = useState(0);
-  const [verifyingId, setVerifyingId] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -27,27 +27,11 @@ export function PaymentList({ revision, onPaymentVerified }) {
     return () => controller.abort();
   }, [revision, attempt]);
 
-  async function handleVerify(paymentId) {
-    if (verifyingId) return;
-    setVerifyingId(paymentId);
-    try {
-      const updated = await verifyPayment(paymentId);
-      setState((prev) => ({
-        ...prev,
-        items: prev.items.map((p) => (p.id === paymentId ? { ...p, ...updated } : p)),
-      }));
-      if (onPaymentVerified) {
-        onPaymentVerified(`Pago de $${Number(updated.amount).toLocaleString("es-CL")} verificado correctamente.`);
-      }
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setVerifyingId(null);
-    }
-  }
-
   return (
-    <section className="equipment-ledger" aria-labelledby="payments-list-heading" aria-busy={state.loading}>
+    <section className={`equipment-ledger ${styles.ledger}`} aria-labelledby="payments-list-heading" aria-busy={state.loading}>
+      <p className="p-4 text-sm text-muted-foreground">
+        La verificación de pagos requiere una sesión interna autorizada.
+      </p>
       <div className="ledger-header">
         <div>
           <h2 id="payments-list-heading">Registro y control de pagos</h2>
@@ -163,10 +147,9 @@ export function PaymentList({ revision, onPaymentVerified }) {
                     ) : (
                       <Button
                         size="sm"
-                        disabled={verifyingId === payment.id}
-                        onClick={() => handleVerify(payment.id)}
+                        disabled
                         className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs px-2.5"
-                        title="Verificar y confirmar abono en cuenta"
+                        title="Requiere una sesión interna autorizada"
                       >
                         <CheckCircle className="w-3.5 h-3.5 mr-1" />
                         Verificar
