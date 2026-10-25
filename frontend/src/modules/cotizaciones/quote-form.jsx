@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { clientRequest } from "@/services/clientes";
 import { createQuote, quoteFormSchema } from "@/services/cotizaciones";
 import { getEventos } from "@/services/eventos";
+import { getQuotePreview } from "@/lib/cotizaciones";
 
 const defaultValues = {
   clientId: "",
@@ -53,12 +54,7 @@ export function QuoteForm({ onSaved }) {
   const selectedClientId = watch("clientId");
   const watchedItems = watch("items") || [];
 
-  // Calcular total y subtotales en tiempo real para feedback inmediato
-  const totalPreview = watchedItems.reduce((acc, item) => {
-    const qty = Number(item.quantity) || 0;
-    const price = Number(item.unitPrice) || 0;
-    return acc + qty * price;
-  }, 0);
+  const preview = getQuotePreview(watchedItems);
 
   useEffect(() => {
     if (open) {
@@ -100,7 +96,8 @@ export function QuoteForm({ onSaved }) {
       };
 
       const result = await createQuote(payload);
-      handleOpenChange(false);
+      setOpen(false);
+      reset(defaultValues);
       if (onSaved) onSaved(result);
     } catch (failure) {
       setServerError(failure.message);
@@ -120,7 +117,7 @@ export function QuoteForm({ onSaved }) {
         <DialogHeader>
           <DialogTitle>Nueva cotización comercial</DialogTitle>
           <DialogDescription>
-            Selecciona el cliente y el evento asociado. Agrega los ítems con sus precios (IVA incluido).
+            Selecciona el cliente y el evento asociado. Agrega los ítems con sus precios.
           </DialogDescription>
         </DialogHeader>
 
@@ -187,7 +184,7 @@ export function QuoteForm({ onSaved }) {
             <div className="flex justify-between items-center">
               <div>
                 <Label className="text-base font-semibold">Ítems de la cotización *</Label>
-                <p className="text-xs text-muted-foreground">Precios unitarios ya incluyen IVA (no sumar 19%)</p>
+                <p className="text-xs text-muted-foreground">Precios unitarios con hasta dos decimales.</p>
               </div>
               <Button
                 type="button"
@@ -202,15 +199,14 @@ export function QuoteForm({ onSaved }) {
             </div>
 
             {fields.map((field, index) => {
-              const qty = Number(watchedItems[index]?.quantity) || 0;
-              const unitPrice = Number(watchedItems[index]?.unitPrice) || 0;
-              const subtotal = qty * unitPrice;
+              const subtotal = preview.subtotals[index] ?? null;
 
               return (
                 <div key={field.id} className="grid grid-cols-12 gap-2 items-start bg-muted/20 p-2.5 rounded-md border">
                   <div className="col-span-6 field">
-                    <Label className="text-xs">Concepto / Servicio</Label>
+                    <Label htmlFor={`quote-concept-${index}`} className="text-xs">Concepto / Servicio</Label>
                     <Input
+                      id={`quote-concept-${index}`}
                       type="text"
                       placeholder="Ej. Sonido para 100 personas"
                       disabled={isSubmitting}
@@ -222,8 +218,9 @@ export function QuoteForm({ onSaved }) {
                   </div>
 
                   <div className="col-span-2 field">
-                    <Label className="text-xs">Cant.</Label>
+                    <Label htmlFor={`quote-quantity-${index}`} className="text-xs">Cant.</Label>
                     <Input
+                      id={`quote-quantity-${index}`}
                       type="number"
                       min="1"
                       disabled={isSubmitting}
@@ -235,11 +232,12 @@ export function QuoteForm({ onSaved }) {
                   </div>
 
                   <div className="col-span-3 field">
-                    <Label className="text-xs">Precio Unit. ($)</Label>
+                    <Label htmlFor={`quote-price-${index}`} className="text-xs">Precio Unit. ($)</Label>
                     <Input
+                      id={`quote-price-${index}`}
                       type="number"
                       min="0"
-                      step="1"
+                      step="0.01"
                       placeholder="0"
                       disabled={isSubmitting}
                       {...register(`items.${index}.unitPrice`)}
@@ -266,7 +264,7 @@ export function QuoteForm({ onSaved }) {
                   </div>
 
                   <div className="col-span-12 text-right text-xs text-muted-foreground pt-1 pr-2">
-                    Subtotal: ${subtotal.toLocaleString("es-CL")}
+                    Subtotal: {subtotal === null ? "—" : `$${subtotal.toLocaleString("es-CL")}`}
                   </div>
                 </div>
               );
@@ -275,8 +273,8 @@ export function QuoteForm({ onSaved }) {
           </div>
 
           <div className="flex justify-between items-center bg-muted/40 p-3 rounded-md border">
-            <span className="font-semibold text-sm">Total estimado (calculado con IVA incluido):</span>
-            <span className="text-lg font-bold">${totalPreview.toLocaleString("es-CL")}</span>
+            <span className="font-semibold text-sm">Total estimado:</span>
+            <span className="text-lg font-bold">{preview.total === null ? "Revisa los importes" : `$${preview.total.toLocaleString("es-CL")}`}</span>
           </div>
 
           {serverError ? (
