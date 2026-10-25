@@ -1,10 +1,12 @@
-import { z } from "zod";
+import { paymentFormSchema } from "../schemas/pagos.js";
+export { paymentFormSchema };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_BASE = rawApiUrl.endsWith("/api/v1") ? rawApiUrl : `${rawApiUrl.replace(/\/$/, "")}/api/v1`;
 
 export async function paymentRequest(path = "", options = {}) {
   const cleanPath = path ? (path.startsWith("/") ? path : `/${path}`) : "";
-  const requestUrl = `${API_URL}/api/v1/payments${cleanPath}`;
+  const requestUrl = `${API_BASE}/payments${cleanPath}`;
 
   try {
     const response = await fetch(requestUrl, {
@@ -45,34 +47,13 @@ export async function registerPayment(payload) {
   });
 }
 
-export async function verifyPayment(paymentId, verifier = { name: "Tesorero / Finanzas" }) {
+/**
+ * Solicitud de verificación de pago.
+ * No inyecta cabeceras simuladas; la autorización la realiza el backend.
+ */
+export async function verifyPayment(paymentId) {
   if (!paymentId) throw new Error("Se requiere el identificador del pago para verificar");
   return paymentRequest(`/${paymentId}/verify`, {
     method: "POST",
-    headers: {
-      "x-user-name": verifier.name || "Tesorero / Finanzas",
-    },
   });
 }
-
-export const paymentFormSchema = z.object({
-  quoteId: z.string().min(1, "Debes seleccionar una cotización"),
-  method: z.enum(["EFECTIVO", "TRANSFERENCIA"], {
-    errorMap: () => ({ message: "Selecciona un método de pago válido (Efectivo o Transferencia)" }),
-  }),
-  amount: z.coerce
-    .number({ invalid_type_error: "Ingresa un monto numérico válido" })
-    .positive("El monto debe ser mayor a 0"),
-  reference: z
-    .string()
-    .trim()
-    .max(120, "La referencia admite hasta 120 caracteres")
-    .optional()
-    .or(z.literal("")),
-  registeredBy: z
-    .string()
-    .trim()
-    .max(120, "El nombre admite hasta 120 caracteres")
-    .optional()
-    .or(z.literal("")),
-});

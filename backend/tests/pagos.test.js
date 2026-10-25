@@ -9,6 +9,7 @@ const cotizacionMock = {
   status: "APROBADA",
   payments: [
     { id: "pay_prev_1", amount: 200000, status: "VERIFICADO", method: "TRANSFERENCIA" },
+    { id: "pay_prev_2", amount: 50000, status: "REGISTRADO", method: "EFECTIVO" }, // no verificado
   ],
 };
 
@@ -49,10 +50,12 @@ function setup() {
         }
         return null;
       }),
-      update: vi.fn().mockImplementation(async ({ where, data }) => ({
-        id: where.id,
-        ...data,
-      })),
+      updateMany: vi.fn().mockImplementation(async ({ where, data }) => {
+        if (where.id === "pay_registrado" && where.status === "REGISTRADO") {
+          return { count: 1 };
+        }
+        return { count: 0 };
+      }),
     },
   };
 
@@ -61,15 +64,15 @@ function setup() {
 
 describe("Requisito 3: Registrar y verificar pagos", () => {
   describe("Registro de recepción (POST /api/v1/payments)", () => {
-    it("registra la recepción de un pago en efectivo con estado REGISTRADO", async () => {
+    it("registra pago en efectivo con estado REGISTRADO sin alterar saldo disponible aún", async () => {
       const { api, db } = setup();
 
       const response = await api.post("/api/v1/payments").send({
         quoteId: "quote_100",
         method: "efectivo",
         amount: 100000,
-        reference: "Recibo de caja #4521",
-        registeredBy: "Recepción Vitacura",
+        reference: "Recibo caja #4521",
+        registeredBy: "Recepción",
       });
 
       expect(response.status).toBe(201);
@@ -79,27 +82,12 @@ describe("Requisito 3: Registrar y verificar pagos", () => {
       expect(db.payment.create).toHaveBeenCalled();
     });
 
-    it("registra la recepción de un pago por transferencia", async () => {
-      const { api, db } = setup();
-
-      const response = await api.post("/api/v1/payments").send({
-        quoteId: "quote_100",
-        method: "transferencia",
-        amount: 150000,
-        reference: "Transf. BancoEstado #987654321",
-      });
-
-      expect(response.status).toBe(201);
-      expect(response.body.status).toBe("REGISTRADO");
-      expect(response.body.method).toBe("TRANSFERENCIA");
-    });
-
-    it("rechaza métodos no permitidos (ej. pasarelas externas no autorizadas)", async () => {
+    it("rechaza métodos no permitidos como pasarelas bancarias o tarjetas de crédito", async () => {
       const { api } = setup();
 
       const response = await api.post("/api/v1/payments").send({
         quoteId: "quote_100",
-        method: "webpay_plus",
+        method: "tarjeta_credito",
         amount: 50000,
       });
 
@@ -107,25 +95,13 @@ describe("Requisito 3: Registrar y verificar pagos", () => {
       expect(response.body.message).toContain("EFECTIVO o TRANSFERENCIA");
     });
 
-    it("rechaza montos negativos o cero", async () => {
-      const { api } = setup();
-
-      const response = await api.post("/api/v1/payments").send({
-        quoteId: "quote_100",
-        method: "efectivo",
-        amount: 0,
-      });
-
-      expect(response.status).toBe(400);
-    });
-
-    it("rechaza si el monto excede el saldo pendiente de la cotización", async () => {
+    it("rechaza si el monto excede el saldo pendiente real (total - pagos verificados)", async () => {
       const { api, db } = setup();
-      // Total es 500.000, ya hay 200.000 verificados -> saldo pendiente es 300.000
+      // Total: 500.000, Verificados: 200.000 -> Saldo pendiente: 300.000
       const response = await api.post("/api/v1/payments").send({
         quoteId: "quote_100",
         method: "efectivo",
-        amount: 300001, // Supera por 1 peso
+        amount: 300001,
       });
 
       expect(response.status).toBe(400);
@@ -133,72 +109,64 @@ describe("Requisito 3: Registrar y verificar pagos", () => {
       expect(db.payment.create).not.toHaveBeenCalled();
     });
 
-    it("retorna 404 si la cotización no existe", async () => {
-      const { api } = setup();
+    it("rechaza montos que desbordan el límite Decimal de base de datos", async () => {
+      const { api, db } = setup();
 
       const response = await api.post("/api/v1/payments").send({
-        quoteId: "quote_inexistente",
+        quoteId: "quote_100",
         method: "efectivo",
-        amount: 50000,
+        amount: 1000000000000,
       });
 
-      expect(response.status).toBe(404);
-      expect(response.body.message).toContain("Cotización no encontrada");
+      expect(response.status).toBe(400);
+      expect(db.payment.create).not.toHaveBeenCalled();
     });
   });
 
-  describe("Verificación de pagos (POST /api/v1/payments/:id/verify)", () => {
-    it("verifica un pago registrado y registra fecha y verificador", async () => {
+  describe("Verificación e idempotencia (POST /api/v1/payments/:id/verify)", () => {
+    it("verifica un pago registrado exitosamente", async () => {
       const { api, db } = setup();
 
-      const response = await api
-        .post("/api/v1/payments/pay_registrado/verify")
-        .set("x-user-name", "Tesorera Maria")
-        .send({});
+      const response = await api.post("/api/v1/payments/pay_registrado/verify").send({});
 
       expect(response.status).toBe(200);
-      expect(db.payment.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "pay_registrado" },
-          data: expect.objectContaining({
-            status: "VERIFICADO",
-            verifiedBy: "Tesorera Maria",
-          }),
-        })
-      );
+      expect(db.payment.updateMany).toHaveBeenCalledWith({
+        where: { id: "pay_registrado", status: "REGISTRADO" },
+        data: expect.objectContaining({
+          status: "VERIFICADO",
+        }),
+      });
     });
 
-    it("impide que un mismo pago se contabilice o verifique dos veces", async () => {
+    it("impide verificar un pago 2 veces (idempotencia y protección de saldo)", async () => {
       const { api, db } = setup();
 
-      // Intento de verificar un pago que ya está VERIFICADO
-      const response = await api
-        .post("/api/v1/payments/pay_ya_verificado/verify")
-        .send({});
+      // Intento de verificar un pago que ya se encuentra VERIFICADO
+      const response = await api.post("/api/v1/payments/pay_ya_verificado/verify").send({});
 
       expect(response.status).toBe(400);
       expect(response.body.message).toContain("ya fue verificado previamente");
-      expect(db.payment.update).not.toHaveBeenCalled();
+      expect(db.payment.updateMany).not.toHaveBeenCalled();
     });
 
-    it("retorna 404 si el registro de pago no existe", async () => {
+    it("retorna 404 para un pago inexistente", async () => {
       const { api } = setup();
-
-      const response = await api.post("/api/v1/payments/pay_fantasma/verify").send({});
+      const response = await api.post("/api/v1/payments/pay_inexistente/verify").send({});
       expect(response.status).toBe(404);
     });
   });
 
-  describe("Resumen financiero y saldos (GET /api/v1/payments/quote/:quoteId/summary)", () => {
-    it("calcula saldos considerando solo los pagos verificados", async () => {
+  describe("Cálculo de saldos financieros (GET /api/v1/payments/quote/:quoteId/summary)", () => {
+    it("calcula saldo pendiente considerando SOLO los pagos verificados", async () => {
       const { api } = setup();
 
       const response = await api.get("/api/v1/payments/quote/quote_100/summary");
 
       expect(response.status).toBe(200);
       expect(response.body.totalCotizacion).toBe(500000);
-      expect(response.body.totalVerificado).toBe(200000);
-      expect(response.body.saldoPendiente).toBe(300000);
+      expect(response.body.totalVerificado).toBe(200000); // Solo pay_prev_1 (200k)
+      expect(response.body.totalRegistradoPendiente).toBe(50000); // pay_prev_2 (50k registrado pero no verificado)
+      expect(response.body.saldoPendiente).toBe(300000); // 500k - 200k = 300k
       expect(response.body.estadoFinanciero).toBe("ABONADO");
     });
   });

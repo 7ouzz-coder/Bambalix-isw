@@ -1,12 +1,4 @@
-import { createPaymentSchema } from "./pagos.schema.js";
-import { paymentService } from "./pagos.service.js";
-
-function formatearErroresZod(error) {
-  if (Array.isArray(error?.issues)) {
-    return error.issues.map((i) => i.message).filter(Boolean).join("; ");
-  }
-  return "Datos de pago inválidos";
-}
+import { paymentService } from "../services/pagos.service.js";
 
 export function paymentController(db) {
   const service = paymentService(db);
@@ -48,15 +40,7 @@ export function paymentController(db) {
 
     async registrarRecepcion(req, res, next) {
       try {
-        const parseResult = createPaymentSchema.safeParse(req.body);
-        if (!parseResult.success) {
-          return res.status(400).json({
-            message: formatearErroresZod(parseResult.error),
-            issues: parseResult.error.issues,
-          });
-        }
-
-        const nuevoPago = await service.registrarRecepcion(parseResult.data);
+        const nuevoPago = await service.registrarRecepcion(req.validatedBody || req.body);
         res.status(201).json(nuevoPago);
       } catch (error) {
         if (error.statusCode) {
@@ -68,12 +52,8 @@ export function paymentController(db) {
 
     async verificar(req, res, next) {
       try {
-        const authUser = {
-          name: req.headers["x-user-name"] || req.user?.name || "Verificador de Pagos",
-          id: req.headers["x-user-id"] || req.user?.id || "user_verificador",
-        };
-
-        const pagoVerificado = await service.verificar(req.params.id, authUser);
+        const authVerifier = req.user || (req.headers["x-user-name"] ? { name: req.headers["x-user-name"] } : null);
+        const pagoVerificado = await service.verificar(req.params.id, authVerifier);
         res.status(200).json(pagoVerificado);
       } catch (error) {
         if (error.statusCode) {
