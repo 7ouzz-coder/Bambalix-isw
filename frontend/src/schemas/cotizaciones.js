@@ -14,7 +14,8 @@ const quoteItemFormSchema = z.object({
   unitPrice: z.coerce
     .number({ invalid_type_error: "Ingresa un precio válido" })
     .min(0, "El precio no puede ser negativo")
-    .max(999999999.99, "El precio excede el límite máximo permitido"),
+    .max(999999999.99, "El precio excede el límite máximo permitido")
+    .refine((value) => /^\d+(\.\d{1,2})?$/.test(String(value)), "El precio admite hasta dos decimales"),
 });
 
 export const quoteFormSchema = z.object({
