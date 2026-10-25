@@ -30,9 +30,8 @@ function setup() {
       create: vi.fn().mockImplementation(async ({ data }) => ({ id: "cli_test_1", ...data })),
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockImplementation(async ({ where }) => {
-        if (where.id === "cli_test_1") {
-          return { id: "cli_test_1", ...payloadPersona };
-        }
+        if (where.id === "cli_test_1") return { id: "cli_test_1", ...payloadPersona };
+        if (where.id === "cli_empresa_1") return { id: "cli_empresa_1", ...payloadEmpresa };
         return null;
       }),
       findFirst: vi.fn().mockResolvedValue(null),
@@ -127,21 +126,46 @@ describe("Requisito 1: Gestión de clientes", () => {
     });
   });
 
-  describe("Edición (PATCH /api/v1/clients/:id)", () => {
-    it("actualiza un cliente existente correctamente", async () => {
+  describe("Edición Parcial (PATCH /api/v1/clients/:id)", () => {
+    it("actualiza 1 solo campo (name) conservando intactos RUT, teléfono y dirección sin setear null", async () => {
       const { api, db } = setup();
       const response = await api.patch("/api/v1/clients/cli_test_1").send({
-        name: "María López Actualizada",
-        phone: "+56 9 9999 8888",
+        name: "María López Modificada",
+      });
+      expect(response.status).toBe(200);
+      // En la llamada a update de Prisma, NO deben pasarse los campos omitidos (rut, phone, address, etc.)
+      expect(db.client.update).toHaveBeenCalledWith({
+        where: { id: "cli_test_1" },
+        data: {
+          name: "María López Modificada",
+        },
+      });
+    });
+
+    it("permite vaciar explícitamente un campo opcional enviando null", async () => {
+      const { api, db } = setup();
+      const response = await api.patch("/api/v1/clients/cli_test_1").send({
+        phone: null,
       });
       expect(response.status).toBe(200);
       expect(db.client.update).toHaveBeenCalledWith({
         where: { id: "cli_test_1" },
-        data: expect.objectContaining({
-          name: "María López Actualizada",
-          phone: "+56 9 9999 8888",
-        }),
+        data: {
+          phone: null,
+        },
       });
+    });
+
+    it("valida la regla empresa vs contacto sobre el objeto fusionado final", async () => {
+      const { api, db } = setup();
+      // El cliente cli_empresa_1 ya es empresa en la base de datos
+      // Si enviamos un patch para borrar el encargado de contacto, debe fallar aunque no se cambie clientType
+      const response = await api.patch("/api/v1/clients/cli_empresa_1").send({
+        contactName: null,
+      });
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain("encargado de contacto");
+      expect(db.client.update).not.toHaveBeenCalled();
     });
 
     it("retorna 404 al editar un cliente inexistente (evita crear cliente fantasma)", async () => {
@@ -176,14 +200,12 @@ describe("Requisito 1: Gestión de clientes", () => {
       expect(db.client.update).not.toHaveBeenCalled();
     });
 
-    it("al cambiar a tipo empresa, exige encargado de contacto", async () => {
+    it("rechaza payload con claves desconocidas", async () => {
       const { api, db } = setup();
       const response = await api.patch("/api/v1/clients/cli_test_1").send({
-        clientType: "empresa",
-        contactName: "",
+        campoInvalido: "hack",
       });
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain("encargado de contacto");
       expect(db.client.update).not.toHaveBeenCalled();
     });
   });
