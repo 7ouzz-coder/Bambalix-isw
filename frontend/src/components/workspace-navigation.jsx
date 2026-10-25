@@ -1,7 +1,8 @@
-import { ArrowUpRight, Boxes, Calendar, Users } from "lucide-react";
+import { ArrowUpRight, Boxes, Calendar, Users, Truck } from "lucide-react";
 
 const modules = [
   { id: "equipos", label: "Equipos", href: "/", Icon: Boxes },
+  { id: "vehiculos", label: "Vehículos", href: "/vehiculos", Icon: Truck },
   { id: "eventos", label: "Eventos", href: "/?module=eventos", Icon: Calendar },
   { id: "clientes", label: "Clientes", href: "/clientes", Icon: Users },
 ];
