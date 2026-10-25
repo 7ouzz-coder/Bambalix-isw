@@ -2,10 +2,10 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { equipmentRoutes } from "./modules/equipos/equipos.routes.js";
-import { clientRoutes } from "./modules/clientes/clientes.routes.js";
+import { clientRoutes } from "./routes/clientes.routes.js";
 import { eventosRoutes } from "./modules/eventos/eventos.routes.js";
-import { quoteRoutes } from "./modules/cotizaciones/cotizaciones.routes.js";
-import { paymentRoutes } from "./modules/pagos/pagos.routes.js";
+import { quoteRoutes } from "./routes/cotizaciones.routes.js";
+import { paymentRoutes } from "./routes/pagos.routes.js";
 
 export function createApp({ db, webOrigin }) {
   const app = express();
