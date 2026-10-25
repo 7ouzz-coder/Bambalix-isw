@@ -1,10 +1,12 @@
-import { z } from "zod";
+import { quoteFormSchema } from "../schemas/cotizaciones.js";
+export { quoteFormSchema };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_BASE = rawApiUrl.endsWith("/api/v1") ? rawApiUrl : `${rawApiUrl.replace(/\/$/, "")}/api/v1`;
 
 export async function quoteRequest(path = "", options = {}) {
   const cleanPath = path ? (path.startsWith("/") ? path : `/${path}`) : "";
-  const requestUrl = `${API_URL}/api/v1/quotes${cleanPath}`;
+  const requestUrl = `${API_BASE}/quotes${cleanPath}`;
 
   try {
     const response = await fetch(requestUrl, {
@@ -50,34 +52,12 @@ export async function submitQuoteForReview(id) {
   });
 }
 
-export async function approveQuote(id, approver = { role: "gerente", name: "Gerente Comercial" }) {
+/**
+ * Solicitud de aprobación gerencial.
+ * No inyecta cabeceras simuladas; viaja con las credenciales de sesión del cliente al servidor.
+ */
+export async function approveQuote(id) {
   return quoteRequest(`/${id}/approve`, {
     method: "POST",
-    headers: {
-      "x-user-role": approver.role || "gerente",
-      "x-user-name": approver.name || "Gerente Comercial",
-    },
   });
 }
-
-const quoteItemFormSchema = z.object({
-  concept: z
-    .string()
-    .trim()
-    .min(2, "El concepto debe tener al menos 2 caracteres")
-    .max(200, "El concepto admite hasta 200 caracteres"),
-  quantity: z.coerce
-    .number()
-    .int("La cantidad debe ser entera")
-    .min(1, "La cantidad mínima es 1"),
-  unitPrice: z.coerce
-    .number()
-    .min(0, "El precio no puede ser negativo"),
-});
-
-export const quoteFormSchema = z.object({
-  clientId: z.string().min(1, "Debes seleccionar un cliente"),
-  eventId: z.coerce.number().int().positive("Debes seleccionar un evento válido"),
-  notes: z.string().max(500, "Las notas admiten hasta 500 caracteres").optional().or(z.literal("")),
-  items: z.array(quoteItemFormSchema).min(1, "Debes agregar al menos un ítem a la cotización"),
-});
