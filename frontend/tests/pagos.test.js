@@ -62,17 +62,16 @@ describe("Servicio y validaciones de Pagos en frontend", () => {
     expect(fetchMock.mock.calls[0][1].method).toBe("POST");
   });
 
-  it("envía solicitud POST para verificar un pago", async () => {
+  it("envía solicitud POST para verificar un pago sin cabeceras simuladas", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ id: "pay_1", status: "VERIFICADO", verifiedBy: "Gabriel García" }),
+      json: async () => ({ id: "pay_1", status: "VERIFICADO", verifiedBy: "Finanzas" }),
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await verifyPayment("pay_1", { name: "Gabriel García" });
+    const res = await verifyPayment("pay_1");
     expect(res.status).toBe("VERIFICADO");
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/v1\/payments\/pay_1\/verify$/);
-    expect(fetchMock.mock.calls[0][1].headers["x-user-name"]).toBe("Gabriel García");
   });
 
   it("obtiene el resumen financiero de una cotización", async () => {

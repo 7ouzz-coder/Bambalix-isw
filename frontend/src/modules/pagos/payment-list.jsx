@@ -31,7 +31,7 @@ export function PaymentList({ revision, onPaymentVerified }) {
     if (verifyingId) return;
     setVerifyingId(paymentId);
     try {
-      const updated = await verifyPayment(paymentId, { name: "Gabriel García (Finanzas)" });
+      const updated = await verifyPayment(paymentId);
       setState((prev) => ({
         ...prev,
         items: prev.items.map((p) => (p.id === paymentId ? { ...p, ...updated } : p)),
