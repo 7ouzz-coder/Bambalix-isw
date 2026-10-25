@@ -1,13 +1,13 @@
 import { z } from "zod";
 
-const optionalText = (max) =>
+const createOptionalText = (max) =>
   z
     .string()
     .trim()
     .max(max, `Máximo ${max} caracteres`)
     .optional()
     .nullable()
-    .transform((val) => (val ? val.trim() : null));
+    .transform((val) => (val && val.trim() !== "" ? val.trim() : null));
 
 export const createClientSchema = z
   .object({
@@ -21,12 +21,12 @@ export const createClientSchema = z
       .trim()
       .max(254, "El correo no puede superar 254 caracteres")
       .email("Ingresa un correo electrónico válido"),
-    rut: optionalText(20),
-    phone: optionalText(40),
-    address: optionalText(240),
+    rut: createOptionalText(20),
+    phone: createOptionalText(40),
+    address: createOptionalText(240),
     clientType: z.enum(["persona", "empresa"]).default("persona"),
-    contactName: optionalText(120),
-    contactPhone: optionalText(40),
+    contactName: createOptionalText(120),
+    contactPhone: createOptionalText(40),
     contactEmail: z
       .string()
       .trim()
@@ -34,10 +34,10 @@ export const createClientSchema = z
       .email("Ingresa un correo de contacto válido")
       .optional()
       .nullable()
-      .or(z.literal(""))
-      .transform((val) => (val ? val.trim() : null)),
-    contactPosition: optionalText(120),
+      .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
+    contactPosition: createOptionalText(120),
   })
+  .strict()
   .refine(
     (data) => {
       if (data.clientType === "empresa") {
@@ -50,6 +50,20 @@ export const createClientSchema = z
       path: ["contactName"],
     }
   );
+
+// Helper para PATCH: distingue undefined (no enviado) de null/string (intención explícita)
+const patchOptionalNullableText = (max) =>
+  z
+    .union([
+      z.string().trim().max(max, `Máximo ${max} caracteres`),
+      z.null(),
+    ])
+    .optional()
+    .transform((val) => {
+      if (val === undefined) return undefined;
+      if (val === null || val.trim() === "") return null;
+      return val.trim();
+    });
 
 export const updateClientSchema = z
   .object({
@@ -65,32 +79,23 @@ export const updateClientSchema = z
       .max(254, "El correo no puede superar 254 caracteres")
       .email("Ingresa un correo electrónico válido")
       .optional(),
-    rut: optionalText(20),
-    phone: optionalText(40),
-    address: optionalText(240),
+    rut: patchOptionalNullableText(20),
+    phone: patchOptionalNullableText(40),
+    address: patchOptionalNullableText(240),
     clientType: z.enum(["persona", "empresa"]).optional(),
-    contactName: optionalText(120),
-    contactPhone: optionalText(40),
+    contactName: patchOptionalNullableText(120),
+    contactPhone: patchOptionalNullableText(40),
     contactEmail: z
-      .string()
-      .trim()
-      .max(254, "El correo de contacto no puede superar 254 caracteres")
-      .email("Ingresa un correo de contacto válido")
+      .union([
+        z.string().trim().max(254, "El correo no puede superar 254 caracteres").email("Ingresa un correo válido"),
+        z.null(),
+      ])
       .optional()
-      .nullable()
-      .or(z.literal(""))
-      .transform((val) => (val ? val.trim() : null)),
-    contactPosition: optionalText(120),
+      .transform((val) => {
+        if (val === undefined) return undefined;
+        if (val === null || val.trim() === "") return null;
+        return val.trim();
+      }),
+    contactPosition: patchOptionalNullableText(120),
   })
-  .refine(
-    (data) => {
-      if (data.clientType === "empresa" && data.contactName !== undefined) {
-        return Boolean(data.contactName && data.contactName.trim().length >= 2);
-      }
-      return true;
-    },
-    {
-      message: "Para clientes tipo empresa se requiere el nombre del encargado de contacto",
-      path: ["contactName"],
-    }
-  );
+  .strict();
