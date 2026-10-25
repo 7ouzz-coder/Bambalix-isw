@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import { equipmentRoutes } from "./modules/equipos/equipos.routes.js";
+import { equipmentRoutes } from "./routes/equipos.routes.js";
+import { vehicleRoutes } from "./routes/vehiculos.routes.js";
 import { clientRoutes } from "./modules/clientes/clientes.routes.js";
 import { eventosRoutes } from "./modules/eventos/eventos.routes.js";
 
@@ -9,7 +10,7 @@ export function createApp({ db, webOrigin }) {
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet());
-  app.use(cors({ origin: webOrigin, methods: ["GET", "POST"] }));
+  app.use(cors({ origin: webOrigin, methods: ["GET", "POST", "PATCH"] }));
   app.use((req, res, next) => {
     if (req.method !== "GET" && req.get("origin") && req.get("origin") !== webOrigin)
       return res.status(403).json({ message: "Origen no autorizado" });
@@ -21,6 +22,7 @@ export function createApp({ db, webOrigin }) {
     res.json({ status: "ok" });
   });
   app.use("/api/v1/operations/resources", equipmentRoutes(db));
+  app.use("/api/v1/operations/vehicles", vehicleRoutes(db));
   app.use("/api/v1/clients", clientRoutes(db));
   app.use("/api/v1/events", eventosRoutes(db));
 
