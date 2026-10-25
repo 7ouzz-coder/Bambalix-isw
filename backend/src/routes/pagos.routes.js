@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { paymentController } from "../controllers/pagos.controller.js";
-import { validateCreatePayment } from "../middlewares/pagos.validation.js";
+import { requirePaymentVerifier, validateCreatePayment } from "../middlewares/pagos.validation.js";
 
 export function paymentRoutes(db) {
   const router = Router();
@@ -10,7 +10,7 @@ export function paymentRoutes(db) {
   router.get("/quote/:quoteId/summary", controller.obtenerEstadoFinanciero);
   router.get("/:id", controller.obtenerPorId);
   router.post("/", validateCreatePayment, controller.registrarRecepcion);
-  router.post("/:id/verify", controller.verificar);
+  router.post("/:id/verify", requirePaymentVerifier, controller.verificar);
 
   return router;
 }

@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+export const paymentVerifierSchema = z.object({
+  id: z.string().trim().min(1).max(100),
+  authenticated: z.literal(true),
+});
+
 export const createPaymentSchema = z
   .object({
     quoteId: z
@@ -16,7 +21,8 @@ export const createPaymentSchema = z
     amount: z
       .number({ required_error: "El monto es obligatorio" })
       .positive("El monto debe ser un valor positivo mayor a 0")
-      .max(999999999.99, "El monto excede el límite máximo permitido"),
+      .max(999999999.99, "El monto excede el límite máximo permitido")
+      .refine((value) => /^\d+(\.\d{1,2})?$/.test(String(value)), "El monto admite hasta dos decimales"),
     reference: z
       .string()
       .trim()
