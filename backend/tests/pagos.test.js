@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import { paymentService } from "../src/services/pagos.service.js";
 
 const cotizacionMock = {
   id: "quote_100",
@@ -8,8 +9,18 @@ const cotizacionMock = {
   total: 500000,
   status: "APROBADA",
   payments: [
-    { id: "pay_prev_1", amount: 200000, status: "VERIFICADO", method: "TRANSFERENCIA" },
-    { id: "pay_prev_2", amount: 50000, status: "REGISTRADO", method: "EFECTIVO" }, // no verificado
+    {
+      id: "pay_prev_1",
+      amount: 200000,
+      status: "VERIFICADO",
+      method: "TRANSFERENCIA",
+    },
+    {
+      id: "pay_prev_2",
+      amount: 50000,
+      status: "REGISTRADO",
+      method: "EFECTIVO",
+    }, // no verificado
   ],
 };
 
@@ -59,7 +70,13 @@ function setup() {
     },
   };
 
-  return { db, api: request(createApp({ db, webOrigin: "http://localhost:3000" })) };
+  db.$queryRaw = vi.fn().mockResolvedValue([{ id: "quote_100" }]);
+  db.$transaction = vi.fn((callback) => callback(db));
+
+  return {
+    db,
+    api: request(createApp({ db, webOrigin: "http://localhost:3000" })),
+  };
 }
 
 describe("Requisito 3: Registrar y verificar pagos", () => {
@@ -77,7 +94,7 @@ describe("Requisito 3: Registrar y verificar pagos", () => {
 
       expect(response.status).toBe(201);
       expect(response.body.status).toBe("REGISTRADO");
-      expect(response.body.amount).toBe(100000);
+      expect(response.body.amount).toBe("100000");
       expect(response.body.method).toBe("EFECTIVO");
       expect(db.payment.create).toHaveBeenCalled();
     });
@@ -124,43 +141,98 @@ describe("Requisito 3: Registrar y verificar pagos", () => {
   });
 
   describe("Verificación e idempotencia (POST /api/v1/payments/:id/verify)", () => {
-    it("verifica un pago registrado exitosamente", async () => {
+    it("rechaza una verificación sin sesión aunque se envíen identidad y rol en cabeceras", async () => {
       const { api, db } = setup();
+      const response = await api
+        .post("/api/v1/payments/pay_registrado/verify")
+        .set("x-user-name", "Gerente")
+        .set("x-user-role", "gerente")
+        .send({ id: "gerente", authenticated: true });
+      expect(response.status).toBe(401);
+      expect(db.payment.updateMany).not.toHaveBeenCalled();
+    });
 
-      const response = await api.post("/api/v1/payments/pay_registrado/verify").send({});
+    it("no autoriza la operación solo por tener una identidad autenticada", async () => {
+      const { db } = setup();
+      await expect(
+        paymentService(db).verificar("pay_registrado", {
+          id: "usuario_interno",
+          authenticated: true,
+        }),
+      ).rejects.toMatchObject({ statusCode: 403 });
+      expect(db.$transaction).not.toHaveBeenCalled();
+    });
 
-      expect(response.status).toBe(200);
+    it("verifica un pago registrado exitosamente", async () => {
+      const { db } = setup();
+      await paymentService(db, {
+        authorizePaymentVerification: async () => true,
+      }).verificar("pay_registrado", {
+        id: "usuario_interno",
+        authenticated: true,
+      });
+      expect(db.$queryRaw).toHaveBeenCalled();
       expect(db.payment.updateMany).toHaveBeenCalledWith({
-        where: { id: "pay_registrado", status: "REGISTRADO" },
+        where: {
+          id: "pay_registrado",
+          quoteId: "quote_100",
+          status: "REGISTRADO",
+        },
         data: expect.objectContaining({
           status: "VERIFICADO",
+          verifiedBy: "usuario_interno",
         }),
       });
     });
 
     it("impide verificar un pago 2 veces (idempotencia y protección de saldo)", async () => {
-      const { api, db } = setup();
-
-      // Intento de verificar un pago que ya se encuentra VERIFICADO
-      const response = await api.post("/api/v1/payments/pay_ya_verificado/verify").send({});
-
-      expect(response.status).toBe(400);
-      expect(response.body.message).toContain("ya fue verificado previamente");
+      const { db } = setup();
+      await expect(
+        paymentService(db, {
+          authorizePaymentVerification: async () => true,
+        }).verificar("pay_ya_verificado", {
+          id: "usuario_interno",
+          authenticated: true,
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        message: expect.stringContaining("ya fue verificado previamente"),
+      });
       expect(db.payment.updateMany).not.toHaveBeenCalled();
     });
 
     it("retorna 404 para un pago inexistente", async () => {
-      const { api } = setup();
-      const response = await api.post("/api/v1/payments/pay_inexistente/verify").send({});
-      expect(response.status).toBe(404);
+      const { db } = setup();
+      await expect(
+        paymentService(db, {
+          authorizePaymentVerification: async () => true,
+        }).verificar("pay_inexistente", {
+          id: "usuario_interno",
+          authenticated: true,
+        }),
+      ).rejects.toMatchObject({ statusCode: 404 });
     });
   });
+
+  it.each([0.001, 1.005, 0, -1])(
+    "rechaza el importe inválido %s sin escribir en la base",
+    async (amount) => {
+      const { api, db } = setup();
+      const response = await api
+        .post("/api/v1/payments")
+        .send({ quoteId: "quote_100", method: "EFECTIVO", amount });
+      expect(response.status).toBe(400);
+      expect(db.payment.create).not.toHaveBeenCalled();
+    },
+  );
 
   describe("Cálculo de saldos financieros (GET /api/v1/payments/quote/:quoteId/summary)", () => {
     it("calcula saldo pendiente considerando SOLO los pagos verificados", async () => {
       const { api } = setup();
 
-      const response = await api.get("/api/v1/payments/quote/quote_100/summary");
+      const response = await api.get(
+        "/api/v1/payments/quote/quote_100/summary",
+      );
 
       expect(response.status).toBe(200);
       expect(response.body.totalCotizacion).toBe(500000);

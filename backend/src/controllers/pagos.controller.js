@@ -52,8 +52,7 @@ export function paymentController(db) {
 
     async verificar(req, res, next) {
       try {
-        const authVerifier = req.user || (req.headers["x-user-name"] ? { name: req.headers["x-user-name"] } : null);
-        const pagoVerificado = await service.verificar(req.params.id, authVerifier);
+        const pagoVerificado = await service.verificar(req.params.id, res.locals.paymentVerifier);
         res.status(200).json(pagoVerificado);
       } catch (error) {
         if (error.statusCode) {

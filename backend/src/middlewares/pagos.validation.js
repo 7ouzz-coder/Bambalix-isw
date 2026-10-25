@@ -1,4 +1,13 @@
-import { createPaymentSchema } from "../schemas/pagos.schema.js";
+import { createPaymentSchema, paymentVerifierSchema } from "../schemas/pagos.schema.js";
+
+export function requirePaymentVerifier(req, res, next) {
+  const result = paymentVerifierSchema.safeParse(req.user);
+  if (!result.success) {
+    return res.status(401).json({ message: "Se requiere una sesión interna válida para verificar pagos" });
+  }
+  res.locals.paymentVerifier = result.data;
+  next();
+}
 
 function formatearErroresZod(error) {
   if (Array.isArray(error?.issues)) {
