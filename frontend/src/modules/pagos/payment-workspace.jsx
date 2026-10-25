@@ -59,13 +59,7 @@ export function PaymentWorkspace() {
               {notice}
             </p>
           ) : null}
-          <PaymentList
-            revision={revision}
-            onPaymentVerified={(msg) => {
-              setNotice(msg);
-              setRevision((prev) => prev + 1);
-            }}
-          />
+          <PaymentList revision={revision} />
         </section>
         <footer className="page-footer">
           <span>BAMBALIX</span>
