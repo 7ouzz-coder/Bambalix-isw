@@ -175,12 +175,17 @@ export function quoteService(db) {
 
       // Autenticación estricta: NO simular auth ni aceptar cabeceras inyectables
       // Si no existe identidad de sesión autenticada real con rol 'gerente', denegar por defecto
-      const role = authUser && authUser.role ? String(authUser.role).toLowerCase() : "";
-      const isVerifiedManager = Boolean(authUser && authUser.authenticated && (role === "gerente" || role === "manager" || role === "admin"));
+      const role =
+        authUser && authUser.role ? String(authUser.role).toLowerCase() : "";
+      const isVerifiedManager = Boolean(
+        authUser?.authenticated === true &&
+        typeof authUser.id === "string" && authUser.id.trim() &&
+        role === "gerente",
+      );
 
       if (!isVerifiedManager) {
         const err = new Error(
-          "Aprobación denegada: la autenticación compartida del servidor aún no está configurada o el usuario no posee rol de gerente verificado. No se aceptan cabeceras simuladas."
+          "Aprobación denegada: la autenticación compartida del servidor aún no está configurada o el usuario no posee rol de gerente verificado. No se aceptan cabeceras simuladas.",
         );
         err.statusCode = 403;
         throw err;
@@ -188,7 +193,7 @@ export function quoteService(db) {
 
       // Transición protegida contra concurrencia: solo de EN_REVISION a APROBADA
       // Prohibido saltar directamente desde BORRADOR ni doble aprobación
-      const approverName = authUser.name || authUser.email || authUser.id || "Gerente Autorizado";
+      const approverName = authUser.name || authUser.email || authUser.id;
       const resultado = await db.quote.updateMany({
         where: { id, status: "EN_REVISION" },
         data: {
