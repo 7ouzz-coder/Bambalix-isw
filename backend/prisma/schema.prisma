@@ -8,14 +8,128 @@ datasource db {
 }
 
 model Resource {
-  id        String   @id @default(cuid())
-  name      String
-  category  String
-  code      String?  @unique
-  mode      String   @default("UNIT")
-  quantity  Int      @default(1)
-  createdAt DateTime @default(now())
+  id            String                  @id @default(cuid())
+  name          String
+  category      String
+  code          String?                 @unique
+  mode          String                  @default("UNIT")
+  quantity      Int                     @default(1)
+  createdAt     DateTime                @default(now())
+  status        EquipmentStatus         @default(UNREVIEWED)
+  revision      Int                     @default(0)
+  statusChanges EquipmentStatusChange[]
+  maintenances  EquipmentMaintenance[]
+  assignments   EquipmentAssignment[]
+  replacementProposals EquipmentReplacement[] @relation("ReplacementEquipment")
+
   @@index([category, name])
+}
+
+enum EquipmentStatus {
+  UNREVIEWED
+  OPERATIONAL
+  MAINTENANCE
+  DAMAGED
+}
+
+model EquipmentMaintenance {
+  id         String   @id @default(cuid())
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  startsAt   DateTime @db.Timestamptz(3)
+  endsAt     DateTime @db.Timestamptz(3)
+  reason     String
+  createdAt  DateTime @default(now())
+  closedAt   DateTime? @db.Timestamptz(3)
+  closingNotes String?
+  notes      EquipmentMaintenanceNote[]
+
+  @@index([resourceId, startsAt, id])
+}
+
+model EquipmentMaintenanceNote {
+  id            String @id @default(cuid())
+  maintenanceId String
+  maintenance   EquipmentMaintenance @relation(fields: [maintenanceId], references: [id], onDelete: Restrict)
+  content       String
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([maintenanceId, createdAt, id])
+}
+
+model EquipmentAssignment {
+  id            String    @id @default(cuid())
+  resourceId    String
+  resource      Resource  @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  eventId       Int
+  event         Event     @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  startsAt      DateTime  @db.Timestamptz(3)
+  endsAt        DateTime  @db.Timestamptz(3)
+  createdAt     DateTime  @default(now())
+  releasedAt    DateTime?
+  releaseReason String?
+  replacementRequests EquipmentReplacement[] @relation("OriginalAssignment")
+  replacementOrigin EquipmentReplacement? @relation("ResultingAssignment")
+
+  @@index([resourceId, releasedAt, startsAt])
+  @@index([eventId])
+}
+
+enum EquipmentReplacementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model EquipmentReplacement {
+  id                   String @id @default(cuid())
+  assignmentId         String
+  assignment           EquipmentAssignment @relation("OriginalAssignment", fields: [assignmentId], references: [id], onDelete: Restrict)
+  resultingAssignmentId String? @unique
+  resultingAssignment EquipmentAssignment? @relation("ResultingAssignment", fields: [resultingAssignmentId], references: [id], onDelete: Restrict)
+  proposedResourceId   String?
+  proposedResource     Resource? @relation("ReplacementEquipment", fields: [proposedResourceId], references: [id], onDelete: Restrict)
+  externalAlternative  String?
+  reason               String
+  estimatedCost        Decimal? @db.Decimal(12, 2)
+  startsAt             DateTime @db.Timestamptz(3)
+  endsAt               DateTime @db.Timestamptz(3)
+  eventStartsAt        DateTime @db.Timestamptz(3)
+  eventEndsAt          DateTime @db.Timestamptz(3)
+  status               EquipmentReplacementStatus @default(PENDING)
+  requestedById        String?
+  createdAt            DateTime @default(now()) @db.Timestamptz(3)
+  decidedAt            DateTime? @db.Timestamptz(3)
+  decidedById          String?
+  decisionReason       String?
+
+  @@index([assignmentId, createdAt, id])
+  @@index([proposedResourceId])
+}
+
+model EquipmentStatusChange {
+  id             String          @id @default(cuid())
+  resourceId     String
+  resource       Resource        @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  previousStatus EquipmentStatus
+  status         EquipmentStatus
+  reason         String
+  revision       Int
+  createdAt      DateTime        @default(now())
+
+  @@unique([resourceId, revision])
+  @@index([resourceId, createdAt])
+}
+
+model Vehicle {
+  id String @id @default(cuid())
+  name String
+  type String
+  plate String @unique
+  revision Int @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([name])
 }
 
 model Client {
@@ -40,6 +154,7 @@ model EventType {
 }
 
 model Event {
+  equipmentAssignments EquipmentAssignment[]
   id          Int       @id @default(autoincrement())
   title       String
   clientId    String    @map("client_id")
