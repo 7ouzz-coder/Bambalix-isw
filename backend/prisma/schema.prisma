@@ -76,6 +76,7 @@ model Quote {
   approvedAt DateTime?   @map("approved_at")
   approvedBy String?     @map("approved_by")
   items      QuoteItem[]
+  payments   Payment[]
   createdAt  DateTime    @default(now()) @map("created_at")
   updatedAt  DateTime    @updatedAt @map("updated_at")
 
@@ -93,4 +94,20 @@ model QuoteItem {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("quote_items")
+}
+
+model Payment {
+  id           String    @id @default(cuid())
+  quoteId      String    @map("quote_id")
+  quote        Quote     @relation(fields: [quoteId], references: [id])
+  method       String    // EFECTIVO | TRANSFERENCIA
+  amount       Decimal   @db.Decimal(12, 2)
+  reference    String?
+  status       String    @default("REGISTRADO") // REGISTRADO | VERIFICADO | ANULADO
+  registeredBy String?   @map("registered_by")
+  verifiedBy   String?   @map("verified_by")
+  verifiedAt   DateTime? @map("verified_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@map("payments")
 }
