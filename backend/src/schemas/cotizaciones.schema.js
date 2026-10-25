@@ -15,7 +15,8 @@ const quoteItemSchema = z
     unitPrice: z
       .number({ required_error: "El precio unitario es obligatorio" })
       .min(0, "El precio unitario no puede ser negativo")
-      .max(999999999.99, "El precio unitario excede el límite permitido de la base de datos"),
+      .max(999999999.99, "El precio unitario excede el límite permitido de la base de datos")
+      .refine((value) => /^\d+(\.\d{1,2})?$/.test(String(value)), "El precio admite hasta dos decimales"),
   })
   .strict();
 

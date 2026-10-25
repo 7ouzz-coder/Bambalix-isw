@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 export function quoteService(db) {
   return {
     async listar(filtros = {}) {
@@ -10,7 +12,9 @@ export function quoteService(db) {
         where,
         include: {
           client: { select: { id: true, name: true, email: true, rut: true } },
-          event: { select: { id: true, title: true, startsAt: true, endsAt: true } },
+          event: {
+            select: { id: true, title: true, startsAt: true, endsAt: true },
+          },
           items: true,
         },
         orderBy: { createdAt: "desc" },
@@ -34,7 +38,9 @@ export function quoteService(db) {
 
     async crear(data) {
       // 1. Validar existencia del cliente
-      const cliente = await db.client.findUnique({ where: { id: data.clientId } });
+      const cliente = await db.client.findUnique({
+        where: { id: data.clientId },
+      });
       if (!cliente) {
         const err = new Error("Cliente no encontrado");
         err.statusCode = 404;
@@ -51,18 +57,19 @@ export function quoteService(db) {
 
       // 3. Validar vinculación coherente: el evento debe pertenecer al cliente
       if (evento.clientId !== data.clientId) {
-        const err = new Error("El evento seleccionado no pertenece al cliente indicado");
+        const err = new Error(
+          "El evento seleccionado no pertenece al cliente indicado",
+        );
         err.statusCode = 400;
         throw err;
       }
 
-      // 4. Calcular importes exactos en el backend (precios ya incluyen IVA)
-      let totalCalculado = 0;
+      let totalCalculado = new Prisma.Decimal(0);
       const itemsPreparados = data.items.map((item) => {
-        const quantity = Math.floor(Number(item.quantity));
-        const unitPrice = Number(Number(item.unitPrice).toFixed(2));
-        const subtotal = Number((quantity * unitPrice).toFixed(2));
-        totalCalculado = Number((totalCalculado + subtotal).toFixed(2));
+        const quantity = item.quantity;
+        const unitPrice = new Prisma.Decimal(item.unitPrice);
+        const subtotal = unitPrice.times(quantity);
+        totalCalculado = totalCalculado.plus(subtotal);
 
         return {
           concept: item.concept.trim(),
@@ -73,37 +80,53 @@ export function quoteService(db) {
       });
 
       // Validar límite superior de columna Decimal(12,2) en PostgreSQL
-      if (totalCalculado > 9999999999.99) {
-        const err = new Error("El importe total excede el límite máximo permitido por el sistema");
+      if (totalCalculado.greaterThan("9999999999.99")) {
+        const err = new Error(
+          "El importe total excede el límite máximo permitido por el sistema",
+        );
         err.statusCode = 400;
         throw err;
       }
 
-      // 5. Código comercial único
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      const code = `COT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}-${randomSuffix}`;
-
-      // 6. Transacción atómica en Prisma para cabecera e ítems
-      return db.$transaction(async (tx) => {
-        return tx.quote.create({
-          data: {
-            code,
-            clientId: data.clientId,
-            eventId: data.eventId,
-            status: "BORRADOR",
-            total: totalCalculado,
-            notes: data.notes || null,
-            items: {
-              create: itemsPreparados,
-            },
-          },
-          include: {
-            client: { select: { id: true, name: true, email: true } },
-            event: { select: { id: true, title: true } },
-            items: true,
-          },
-        });
-      });
+      const date = new Date();
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+        const code = `COT-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}-${randomSuffix}`;
+        try {
+          return await db.$transaction(async (tx) =>
+            tx.quote.create({
+              data: {
+                code,
+                clientId: data.clientId,
+                eventId: data.eventId,
+                status: "BORRADOR",
+                total: totalCalculado,
+                notes: data.notes || null,
+                items: {
+                  create: itemsPreparados,
+                },
+              },
+              include: {
+                client: { select: { id: true, name: true, email: true } },
+                event: { select: { id: true, title: true } },
+                items: true,
+              },
+            }),
+          );
+        } catch (error) {
+          const duplicateCode =
+            error.code === "P2002" &&
+            Array.isArray(error.meta?.target) &&
+            error.meta.target.includes("code");
+          if (!duplicateCode) throw error;
+          // PostgreSQL requiere una transacción nueva después de un conflicto único.
+        }
+      }
+      const err = new Error(
+        "No se pudo generar un código único para la cotización. Intenta nuevamente",
+      );
+      err.statusCode = 409;
+      throw err;
     },
 
     async enviarARevision(id) {
@@ -127,7 +150,7 @@ export function quoteService(db) {
           throw err;
         }
         const err = new Error(
-          `Transición inválida: solo se pueden enviar a revisión cotizaciones en estado BORRADOR (estado actual: ${cotizacionActual.status})`
+          `Transición inválida: solo se pueden enviar a revisión cotizaciones en estado BORRADOR (estado actual: ${cotizacionActual.status})`,
         );
         err.statusCode = 400;
         throw err;
@@ -183,7 +206,9 @@ export function quoteService(db) {
           throw err;
         }
         if (cotizacionActual.status === "BORRADOR") {
-          const err = new Error("Transición inválida: una cotización debe enviarse a revisión antes de ser aprobada");
+          const err = new Error(
+            "Transición inválida: una cotización debe enviarse a revisión antes de ser aprobada",
+          );
           err.statusCode = 400;
           throw err;
         }
@@ -192,7 +217,9 @@ export function quoteService(db) {
           err.statusCode = 400;
           throw err;
         }
-        const err = new Error(`No se puede aprobar una cotización en estado ${cotizacionActual.status}`);
+        const err = new Error(
+          `No se puede aprobar una cotización en estado ${cotizacionActual.status}`,
+        );
         err.statusCode = 400;
         throw err;
       }
