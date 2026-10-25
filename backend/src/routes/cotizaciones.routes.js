@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { quoteController } from "./cotizaciones.controller.js";
+import { quoteController } from "../controllers/cotizaciones.controller.js";
+import { requireManagerAuth, validateCreateQuote } from "../middlewares/cotizaciones.validation.js";
 
 export function quoteRoutes(db) {
   const router = Router();
@@ -7,9 +8,9 @@ export function quoteRoutes(db) {
 
   router.get("/", controller.listar);
   router.get("/:id", controller.obtenerPorId);
-  router.post("/", controller.crear);
+  router.post("/", validateCreateQuote, controller.crear);
   router.post("/:id/submit-review", controller.enviarARevision);
-  router.post("/:id/approve", controller.aprobar);
+  router.post("/:id/approve", requireManagerAuth, controller.aprobar);
 
   return router;
 }

@@ -54,7 +54,7 @@ export function QuoteList({ revision, onStatusChanged }) {
   async function handleApprove(quoteId) {
     setActionLoading(quoteId);
     try {
-      const updated = await approveQuote(quoteId, { role: "gerente", name: "Gabriel García (Gerente)" });
+      const updated = await approveQuote(quoteId);
       setState((prev) => ({
         ...prev,
         items: prev.items.map((q) => (q.id === quoteId ? { ...q, ...updated } : q)),

@@ -68,16 +68,16 @@ describe("Servicio y validaciones de Cotizaciones en frontend", () => {
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/v1\/quotes\/quote_1\/submit-review$/);
   });
 
-  it("envía solicitud de aprobación de gerente con headers correspondientes", async () => {
+  it("envía solicitud de aprobación de gerente sin inyectar cabeceras simuladas", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ id: "quote_1", status: "APROBADA", approvedBy: "Gabriel García" }),
+      json: async () => ({ id: "quote_1", status: "APROBADA", approvedBy: "Gerente Autorizado" }),
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await approveQuote("quote_1", { role: "gerente", name: "Gabriel García" });
+    const res = await approveQuote("quote_1");
     expect(res.status).toBe("APROBADA");
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/v1\/quotes\/quote_1\/approve$/);
-    expect(fetchMock.mock.calls[0][1].headers["x-user-role"]).toBe("gerente");
+    expect(fetchMock.mock.calls[0][1].headers["x-user-role"]).toBeUndefined();
   });
 });
