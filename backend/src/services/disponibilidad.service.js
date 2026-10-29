@@ -15,13 +15,15 @@ export function periodoOcupado(resourceId, startsAt, endsAt) {
   return { resourceId, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } };
 }
 
-export async function motivosNoDisponible(tx, equipment, startsAt, endsAt) {
+export async function motivosNoDisponible(tx, equipment, startsAt, endsAt, excludedAssignmentId = null) {
   const reasons = [];
   if (equipment.status !== "OPERATIONAL") reasons.push("El equipo no está operativo");
   const period = periodoOcupado(equipment.id, startsAt, endsAt);
   if (await tx.equipmentMaintenance.findFirst({ where: period, select: { id: true } }))
     reasons.push("El periodo cruza una mantención del equipo");
-  if (await tx.equipmentAssignment.findFirst({ where: { ...period, releasedAt: null }, select: { id: true } }))
+  if (await tx.equipmentAssignment.findFirst({ where: {
+    ...period, releasedAt: null, ...(excludedAssignmentId ? { id: { not: excludedAssignmentId } } : {}),
+  }, select: { id: true } }))
     reasons.push("El equipo ya está asignado durante ese periodo");
   return reasons;
 }
