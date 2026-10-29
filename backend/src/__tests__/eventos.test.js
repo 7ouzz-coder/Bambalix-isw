@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../app.js";
-import { updateEvento } from "../services/eventos.service.js";
+import { updateEvento, coordinarReprogramacion } from "../services/eventos.service.js";
 
 describe("Módulo Eventos - Rutas y Servicios", () => {
   let mockDb;
@@ -684,6 +684,138 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
         .send({ status: "CONFIRMADO" });
 
       expect(response.status).toBe(400);
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Coordinador de Reprogramación (coordinarReprogramacion)", () => {
+    const existingEvento = {
+      id: 10,
+      title: "Concierto Primavera",
+      clientId: "client-1",
+      eventTypeId: 2,
+      startsAt: new Date("2026-11-20T18:00:00.000Z"),
+      endsAt: new Date("2026-11-20T23:00:00.000Z"),
+      attendees: 100,
+      location: "Teatro Municipal",
+      needs: "Sonido en vivo",
+    };
+
+    const validInput = {
+      expectedStartsAt: "2026-11-20T18:00:00.000Z",
+      expectedEndsAt: "2026-11-20T23:00:00.000Z",
+      startsAt: "2026-11-21T18:00:00.000Z",
+      endsAt: "2026-11-21T23:00:00.000Z",
+      assignments: [
+        {
+          id: "asig-1",
+          expectedStartsAt: "2026-11-20T17:00:00.000Z",
+          expectedEndsAt: "2026-11-21T00:00:00.000Z",
+          startsAt: "2026-11-21T17:00:00.000Z",
+          endsAt: "2026-11-22T00:00:00.000Z",
+        },
+      ],
+    };
+
+    it("rechaza con 409 si la función de reprogramación de Recursos no está provista o disponible", async () => {
+      await expect(
+        coordinarReprogramacion(mockDb, 10, validInput)
+      ).rejects.toThrow("La integración con Recursos y operación no está disponible");
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("ejecuta la coordinación exitosamente respetando el orden y propagando la transacción", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      mockDb.event.update.mockResolvedValue({
+        ...existingEvento,
+        startsAt: new Date(validInput.startsAt),
+        endsAt: new Date(validInput.endsAt),
+      });
+
+      const mockPlan = {
+        assignments: [{ id: "asig-1", startsAt: new Date(validInput.assignments[0].startsAt) }],
+      };
+      const reprogramarFnMock = vi.fn().mockResolvedValue(mockPlan);
+
+      const result = await coordinarReprogramacion(mockDb, 10, validInput, {
+        reprogramarAsignacionesFn: reprogramarFnMock,
+      });
+
+      // 1. Debe haber llamado primero a reprogramarAsignaciones con la misma tx y el payload exacto
+      expect(reprogramarFnMock).toHaveBeenCalledWith(
+        mockDb,
+        10,
+        expect.objectContaining({
+          expectedStartsAt: validInput.expectedStartsAt,
+          expectedEndsAt: validInput.expectedEndsAt,
+          startsAt: validInput.startsAt,
+          endsAt: validInput.endsAt,
+          assignments: validInput.assignments,
+        })
+      );
+
+      // 2. No debe haber llamado al SELECT FOR UPDATE redundante de eventos al inicio
+      expect(mockDb.$queryRaw).not.toHaveBeenCalledWith(
+        expect.arrayContaining([expect.stringContaining("FOR UPDATE")])
+      );
+
+      // 3. El evento debe haberse actualizado
+      expect(mockDb.event.update).toHaveBeenCalled();
+      expect(result.event).toBeDefined();
+      expect(result.recursosPlan).toBe(mockPlan);
+    });
+
+    it("revierte y rechaza si el servicio de Recursos detecta conflicto o falla", async () => {
+      const reprogramarFnMock = vi.fn().mockRejectedValue(new Error("Conflicto de equipos: equipo no disponible"));
+
+      await expect(
+        coordinarReprogramacion(mockDb, 10, validInput, {
+          reprogramarAsignacionesFn: reprogramarFnMock,
+        })
+      ).rejects.toThrow("Conflicto de equipos: equipo no disponible");
+
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("revierte si las fechas esperadas no coinciden con las registradas en el evento (datos desactualizados)", async () => {
+      mockDb.event.findUnique.mockResolvedValue({
+        ...existingEvento,
+        startsAt: new Date("2026-11-20T19:00:00.000Z"), // Discrepancia con expectedStartsAt
+      });
+
+      const reprogramarFnMock = vi.fn().mockResolvedValue({ assignments: [] });
+
+      await expect(
+        coordinarReprogramacion(mockDb, 10, validInput, {
+          reprogramarAsignacionesFn: reprogramarFnMock,
+        })
+      ).rejects.toThrow("Las fechas esperadas no coinciden con las registradas en el evento");
+
+      expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("revierte la transacción si Eventos detecta conflicto de espacio posterior a Recursos", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      // Simula conflicto en el espacio con otro evento
+      mockDb.event.findFirst.mockResolvedValue({
+        id: 99,
+        title: "Otro Evento Ocupando Teatro",
+        location: "Teatro Municipal",
+        startsAt: new Date("2026-11-21T18:00:00.000Z"),
+        endsAt: new Date("2026-11-21T23:00:00.000Z"),
+      });
+
+      const reprogramarFnMock = vi.fn().mockResolvedValue({ assignments: [] });
+
+      await expect(
+        coordinarReprogramacion(
+          mockDb,
+          10,
+          { ...validInput, location: "Teatro Municipal" },
+          { reprogramarAsignacionesFn: reprogramarFnMock }
+        )
+      ).rejects.toThrow("Conflicto de programación: el espacio «Teatro Municipal»");
+
       expect(mockDb.event.update).not.toHaveBeenCalled();
     });
   });

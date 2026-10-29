@@ -320,5 +320,88 @@ export async function updateEvento(db, id, datos, options = {}) {
   });
 }
 
+/**
+ * Coordinador transaccional interno para la reprogramación de asignaciones y evento.
+ *
+ * Sigue el flujo atómico y estricto orden de bloqueos acordado:
+ * 1. Abre una única transacción Prisma con aislamiento ReadCommitted.
+ * 2. Invoca reprogramarAsignaciones(tx, eventId, input) -> Bloquea recursos por ID ordenado,
+ *    bloquea el evento con FOR UPDATE, valida coberturas y actualiza las asignaciones.
+ * 3. Con el plan validado devuelto, invoca updateEvento pasando el mismo cliente tx y skipEventLock: true.
+ * 4. Valida en onScheduleChange que las fechas anteriores y nuevas coincidan con el plan de Recursos.
+ * 5. Ejecuta las validaciones de agenda y espacio (bloqueo consultivo de espacio).
+ * 6. Confirma conjuntamente o revierte todo ante cualquier error.
+ */
+export async function coordinarReprogramacion(db, eventId, input, options = {}) {
+  const strId = String(eventId).trim();
+  if (!/^[1-9]\d*$/.test(strId)) {
+    throw new ValidationError("ID de evento inválido");
+  }
+  const numericId = Number(strId);
+  if (!Number.isSafeInteger(numericId) || numericId > 2147483647) {
+    throw new ValidationError("ID de evento inválido");
+  }
+
+  // Comprobar la inyección o disponibilidad del servicio de Recursos
+  const reprogramarFn = options.reprogramarAsignacionesFn;
+  if (typeof reprogramarFn !== "function") {
+    throw new ConflictError(
+      "La integración con Recursos y operación no está disponible. No se puede reprogramar sin el servicio de asignaciones."
+    );
+  }
+
+  const runner = typeof db.$transaction === "function"
+    ? (cb) => db.$transaction(cb, { isolationLevel: "ReadCommitted" })
+    : (cb) => cb(db);
+
+  return runner(async (tx) => {
+    // 1. Invoca el servicio de Recursos dentro de la transacción compartida
+    // Recursos bloquea: equipos en orden estable por ID -> evento FOR UPDATE
+    const planRecursos = await reprogramarFn(tx, numericId, {
+      expectedStartsAt: input.expectedStartsAt,
+      expectedEndsAt: input.expectedEndsAt,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      assignments: input.assignments || [],
+    });
+
+    // 2. Con el plan validado, actualiza el evento con el mismo tx y skipEventLock: true
+    const updatePayload = {
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+    };
+    if (input.title !== undefined) updatePayload.title = input.title;
+    if (input.clientId !== undefined) updatePayload.clientId = input.clientId;
+    if (input.eventTypeId !== undefined) updatePayload.eventTypeId = input.eventTypeId;
+    if (input.attendees !== undefined) updatePayload.attendees = input.attendees;
+    if (input.location !== undefined) updatePayload.location = input.location;
+    if (input.needs !== undefined) updatePayload.needs = input.needs;
+
+    const eventoActualizado = await updateEvento(tx, numericId, updatePayload, {
+      skipEventLock: true,
+      onScheduleChange: async (_innerTx, scheduleChangeData) => {
+        // Valida que el identificador y fechas coincidan estrictamente con el plan validado por Recursos
+        if (scheduleChangeData.eventId !== numericId) {
+          throw new ConflictError("Discrepancia en identificador de evento durante la reprogramación");
+        }
+        const expStart = new Date(input.expectedStartsAt).getTime();
+        const expEnd = new Date(input.expectedEndsAt).getTime();
+        const prevStart = new Date(scheduleChangeData.expectedSchedule.startsAt).getTime();
+        const prevEnd = new Date(scheduleChangeData.expectedSchedule.endsAt).getTime();
+
+        if (expStart !== prevStart || expEnd !== prevEnd) {
+          throw new ConflictError("Las fechas esperadas no coinciden con las registradas en el evento");
+        }
+      },
+    });
+
+    return {
+      event: eventoActualizado,
+      recursosPlan: planRecursos,
+    };
+  });
+}
+
+
 
 

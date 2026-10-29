@@ -153,4 +153,77 @@ export const consultarAgendaSchema = z
     }
   );
 
+export const coordinarReprogramacionSchema = z
+  .object({
+    expectedStartsAt: z
+      .string({ required_error: "La fecha esperada de inicio es obligatoria" })
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "La fecha esperada de inicio no es válida",
+      }),
+    expectedEndsAt: z
+      .string({ required_error: "La fecha esperada de término es obligatoria" })
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "La fecha esperada de término no es válida",
+      }),
+    startsAt: z
+      .string({ required_error: "La nueva fecha de inicio es obligatoria" })
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "La nueva fecha de inicio no es válida",
+      }),
+    endsAt: z
+      .string({ required_error: "La nueva fecha de término es obligatoria" })
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "La nueva fecha de término no es válida",
+      }),
+    assignments: z.array(
+      z
+        .object({
+          id: z.string({ required_error: "El ID de asignación es obligatorio" }).min(1),
+          expectedStartsAt: z
+            .string({ required_error: "La fecha esperada de asignación es obligatoria" })
+            .refine((val) => !isNaN(Date.parse(val)), {
+              message: "La fecha esperada de asignación no es válida",
+            }),
+          expectedEndsAt: z
+            .string({ required_error: "La fecha de término esperada de asignación es obligatoria" })
+            .refine((val) => !isNaN(Date.parse(val)), {
+              message: "La fecha de término esperada de asignación no es válida",
+            }),
+          startsAt: z
+            .string({ required_error: "La nueva fecha de inicio de asignación es obligatoria" })
+            .refine((val) => !isNaN(Date.parse(val)), {
+              message: "La nueva fecha de inicio de asignación no es válida",
+            }),
+          endsAt: z
+            .string({ required_error: "La nueva fecha de término de asignación es obligatoria" })
+            .refine((val) => !isNaN(Date.parse(val)), {
+              message: "La nueva fecha de término de asignación no es válida",
+            }),
+        })
+        .strict()
+        .refine(
+          (a) => new Date(a.endsAt) > new Date(a.startsAt),
+          {
+            message: "El periodo propuesto de la asignación debe tener término posterior al inicio",
+            path: ["endsAt"],
+          }
+        )
+    ),
+    title: z.string().min(3).max(160).optional(),
+    clientId: z.string().min(1).optional(),
+    eventTypeId: z.number().int().positive().max(2147483647).optional(),
+    attendees: z.number().int().min(1).max(100000).optional(),
+    location: z.string().nullable().optional(),
+    needs: z.string().nullable().optional(),
+  })
+  .strict()
+  .refine(
+    (data) => new Date(data.endsAt) > new Date(data.startsAt),
+    {
+      message: "La nueva fecha de término del evento debe ser posterior al inicio",
+      path: ["endsAt"],
+    }
+  );
+
+
 
