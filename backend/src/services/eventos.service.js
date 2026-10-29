@@ -222,8 +222,10 @@ export async function updateEvento(db, id, datos, options = {}) {
   const runner = typeof db.$transaction === "function" ? (cb) => db.$transaction(cb) : (cb) => cb(db);
 
   return runner(async (tx) => {
-    // Bloqueo exclusivo de fila en PostgreSQL para evitar carreras concurrentes al editar el mismo evento
-    if (typeof tx.$queryRaw === "function") {
+    // Si la operación se realiza dentro de un coordinador externo que ya adquirió los bloqueos requeridos
+    // (Recursos ordenados por ID -> Evento FOR UPDATE), se puede omitir el bloqueo inicial para no invertir
+    // el orden de adquisición. En llamadas directas ordinarias, se adquiere FOR UPDATE sobre el evento.
+    if (!options.skipEventLock && typeof tx.$queryRaw === "function") {
       await tx.$queryRaw`SELECT id FROM events WHERE id = ${numericId} FOR UPDATE`;
     }
 
@@ -270,6 +272,8 @@ export async function updateEvento(db, id, datos, options = {}) {
       (datos.startsAt !== undefined && startsAt.getTime() !== new Date(existing.startsAt).getTime()) ||
       (datos.endsAt !== undefined && endsAt.getTime() !== new Date(existing.endsAt).getTime());
 
+    // Al reprogramar horario, la validación y bloqueo de Recursos debe ocurrir de forma coordinada
+    // para respetar el orden obligatorio: Recursos ordenados por ID -> Evento -> Espacio consultivo.
     if (isScheduleChange) {
       if (typeof options.onScheduleChange !== "function") {
         throw new ConflictError(
@@ -278,6 +282,10 @@ export async function updateEvento(db, id, datos, options = {}) {
       }
       await options.onScheduleChange(tx, {
         eventId: numericId,
+        expectedSchedule: {
+          startsAt: existing.startsAt,
+          endsAt: existing.endsAt,
+        },
         previousSchedule: {
           startsAt: existing.startsAt,
           endsAt: existing.endsAt,

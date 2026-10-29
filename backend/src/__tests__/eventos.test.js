@@ -616,8 +616,52 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
         )
       ).rejects.toThrow("Conflicto de equipos: equipo asignado no disponible");
 
-      expect(onScheduleChangeMock).toHaveBeenCalled();
+      expect(onScheduleChangeMock).toHaveBeenCalledWith(
+        mockDb,
+        expect.objectContaining({
+          eventId: 5,
+          expectedSchedule: {
+            startsAt: existingEvento.startsAt,
+            endsAt: existingEvento.endsAt,
+          },
+          newSchedule: {
+            startsAt: new Date("2026-11-21T18:00:00.000Z"),
+            endsAt: new Date("2026-11-21T23:00:00.000Z"),
+          },
+        })
+      );
       expect(mockDb.event.update).not.toHaveBeenCalled();
+    });
+
+    it("permite omitir el bloqueo inicial del evento si un coordinador externo ya adquirió los bloqueos en orden (skipEventLock)", async () => {
+      mockDb.event.findUnique.mockResolvedValue(existingEvento);
+      mockDb.event.update.mockResolvedValue({
+        ...existingEvento,
+        title: "Reprogramado por Coordinador",
+      });
+
+      const onScheduleChangeMock = vi.fn().mockResolvedValue(true);
+
+      await updateEvento(
+        mockDb,
+        5,
+        {
+          title: "Reprogramado por Coordinador",
+          startsAt: "2026-11-21T18:00:00.000Z",
+          endsAt: "2026-11-21T23:00:00.000Z",
+        },
+        {
+          skipEventLock: true,
+          onScheduleChange: onScheduleChangeMock,
+        }
+      );
+
+      // No debe haber llamado al SELECT FOR UPDATE del evento al inicio porque el coordinador externo ya lo adquirió
+      expect(mockDb.$queryRaw).not.toHaveBeenCalledWith(
+        expect.arrayContaining([expect.stringContaining("FOR UPDATE")])
+      );
+      expect(onScheduleChangeMock).toHaveBeenCalled();
+      expect(mockDb.event.update).toHaveBeenCalled();
     });
 
     it("responde 409 y no modifica el evento si se intenta cambiar el horario sin validador de recursos conectado", async () => {
