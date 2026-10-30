@@ -717,6 +717,85 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
       ],
     };
 
+    it("rechaza con 400 si la entrada no cumple con el esquema estricto (ej. assignments ausente, fechas sin offset, asignaciones duplicadas)", async () => {
+      // Falta assignments
+      await expect(
+        coordinarReprogramacion(mockDb, 10, {
+          expectedStartsAt: "2026-11-20T18:00:00Z",
+          expectedEndsAt: "2026-11-20T23:00:00Z",
+          startsAt: "2026-11-21T18:00:00Z",
+          endsAt: "2026-11-21T23:00:00Z",
+        }, { reprogramarAsignacionesFn: vi.fn() })
+      ).rejects.toThrow("La lista de asignaciones es obligatoria");
+
+      // Fechas sin offset / zona
+      await expect(
+        coordinarReprogramacion(mockDb, 10, {
+          ...validInput,
+          startsAt: "2026-11-21 18:00:00",
+        }, { reprogramarAsignacionesFn: vi.fn() })
+      ).rejects.toThrow("ISO");
+
+      // Asignaciones duplicadas
+      await expect(
+        coordinarReprogramacion(mockDb, 10, {
+          ...validInput,
+          assignments: [
+            validInput.assignments[0],
+            validInput.assignments[0],
+          ],
+        }, { reprogramarAsignacionesFn: vi.fn() })
+      ).rejects.toThrow("No se permiten asignaciones duplicadas");
+
+      // Campos no permitidos
+      await expect(
+        coordinarReprogramacion(mockDb, 10, {
+          ...validInput,
+          campoDesconocido: "invalido",
+        }, { reprogramarAsignacionesFn: vi.fn() })
+      ).rejects.toThrow("Unrecognized key");
+    });
+
+    it("rechaza con TypeError si db no es un cliente con soporte de transacciones ($transaction)", async () => {
+      await expect(
+        coordinarReprogramacion({}, 10, validInput, {
+          reprogramarAsignacionesFn: vi.fn(),
+        })
+      ).rejects.toThrow(TypeError);
+    });
+
+    it("rechaza con 409 si el plan devuelto por Recursos tiene fechas o eventId discrepantes", async () => {
+      const discrepantPlan = {
+        eventId: 999, // Distinto ID
+        expectedStartsAt: new Date(validInput.expectedStartsAt),
+        expectedEndsAt: new Date(validInput.expectedEndsAt),
+        startsAt: new Date(validInput.startsAt),
+        endsAt: new Date(validInput.endsAt),
+        assignments: [],
+      };
+
+      await expect(
+        coordinarReprogramacion(mockDb, 10, validInput, {
+          reprogramarAsignacionesFn: vi.fn().mockResolvedValue(discrepantPlan),
+        })
+      ).rejects.toThrow("Discrepancia en identificador de evento devuelto en el plan de Recursos");
+
+      const discrepantDatesPlan = {
+        eventId: 10,
+        expectedStartsAt: new Date("2026-11-20T19:00:00.000Z"), // Diferente
+        expectedEndsAt: new Date(validInput.expectedEndsAt),
+        startsAt: new Date(validInput.startsAt),
+        endsAt: new Date(validInput.endsAt),
+        assignments: [],
+      };
+
+      await expect(
+        coordinarReprogramacion(mockDb, 10, validInput, {
+          reprogramarAsignacionesFn: vi.fn().mockResolvedValue(discrepantDatesPlan),
+        })
+      ).rejects.toThrow("Las fechas esperadas del plan de Recursos no coinciden con las fechas esperadas validadas");
+    });
+
     it("rechaza con 409 si la función de reprogramación de Recursos no está provista o disponible", async () => {
       await expect(
         coordinarReprogramacion(mockDb, 10, validInput)
@@ -733,7 +812,12 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
       });
 
       const mockPlan = {
-        assignments: [{ id: "asig-1", startsAt: new Date(validInput.assignments[0].startsAt) }],
+        eventId: 10,
+        expectedStartsAt: new Date(validInput.expectedStartsAt),
+        expectedEndsAt: new Date(validInput.expectedEndsAt),
+        startsAt: new Date(validInput.startsAt),
+        endsAt: new Date(validInput.endsAt),
+        assignments: [{ id: "asig-1", startsAt: new Date(validInput.assignments[0].startsAt), endsAt: new Date(validInput.assignments[0].endsAt) }],
       };
       const reprogramarFnMock = vi.fn().mockResolvedValue(mockPlan);
 
@@ -783,13 +867,21 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
         startsAt: new Date("2026-11-20T19:00:00.000Z"), // Discrepancia con expectedStartsAt
       });
 
-      const reprogramarFnMock = vi.fn().mockResolvedValue({ assignments: [] });
+      const mockPlan = {
+        eventId: 10,
+        expectedStartsAt: new Date(validInput.expectedStartsAt),
+        expectedEndsAt: new Date(validInput.expectedEndsAt),
+        startsAt: new Date(validInput.startsAt),
+        endsAt: new Date(validInput.endsAt),
+        assignments: [],
+      };
+      const reprogramarFnMock = vi.fn().mockResolvedValue(mockPlan);
 
       await expect(
         coordinarReprogramacion(mockDb, 10, validInput, {
           reprogramarAsignacionesFn: reprogramarFnMock,
         })
-      ).rejects.toThrow("Las fechas esperadas no coinciden con las registradas en el evento");
+      ).rejects.toThrow("Las fechas anteriores en el evento no coinciden con las fechas esperadas del plan");
 
       expect(mockDb.event.update).not.toHaveBeenCalled();
     });
@@ -805,7 +897,15 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
         endsAt: new Date("2026-11-21T23:00:00.000Z"),
       });
 
-      const reprogramarFnMock = vi.fn().mockResolvedValue({ assignments: [] });
+      const mockPlan = {
+        eventId: 10,
+        expectedStartsAt: new Date(validInput.expectedStartsAt),
+        expectedEndsAt: new Date(validInput.expectedEndsAt),
+        startsAt: new Date(validInput.startsAt),
+        endsAt: new Date(validInput.endsAt),
+        assignments: [],
+      };
+      const reprogramarFnMock = vi.fn().mockResolvedValue(mockPlan);
 
       await expect(
         coordinarReprogramacion(
