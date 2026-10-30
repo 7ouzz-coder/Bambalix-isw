@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ListPagination } from "@/components/list-pagination";
 import { ReplacementRequestForm } from "./replacement-request-form";
 import { ReplacementDecisionForm } from "./replacement-decision-form";
+import styles from "./equipment-replacements.module.css";
 
 const labels = { PENDING: "Pendiente", APPROVED: "Aprobada", REJECTED: "Rechazada" };
 
@@ -39,7 +40,7 @@ export function EquipmentReplacements({ equipment, assignment, busy, onBack }) {
   }
   const editing = creating || Boolean(decision);
   const originalReleased = Boolean(assignment.releasedAt || state.assignmentReleasedAt || swapped);
-  return <section className="equipment-status-history" aria-labelledby={id} aria-busy={state.loading}>
+  return <section className={`equipment-status-history ${styles.panel}`} aria-labelledby={id} aria-busy={state.loading}>
     <h3 id={id}>Reemplazos de equipo</h3>
     <p>{assignment.event.title} · #{assignment.event.id}</p>
     <p className="form-note">Solicitar no reserva equipos. Aprobar un sustituto registrado libera el original y asigna el sustituto al mismo evento y periodo. Una alternativa externa solo queda autorizada.</p>
