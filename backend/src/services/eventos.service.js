@@ -1,3 +1,5 @@
+import { coordinarReprogramacionSchema } from "../schemas/eventos.schema.js";
+
 export class NotFoundError extends Error {
   constructor(message) {
     super(message);
@@ -342,7 +344,15 @@ export async function coordinarReprogramacion(db, eventId, input, options = {}) 
     throw new ValidationError("ID de evento inválido");
   }
 
-  // Comprobar la inyección o disponibilidad del servicio de Recursos
+  // 1. Validar la entrada mediante el esquema separado
+  const parsed = coordinarReprogramacionSchema.safeParse(input);
+  if (!parsed.success) {
+    const primerError = parsed.error.issues[0]?.message || "Datos de reprogramación inválidos";
+    throw new ValidationError(primerError);
+  }
+  const validatedInput = parsed.data;
+
+  // 2. Comprobar la inyección o disponibilidad del servicio de Recursos
   const reprogramarFn = options.reprogramarAsignacionesFn;
   if (typeof reprogramarFn !== "function") {
     throw new ConflictError(
@@ -350,47 +360,88 @@ export async function coordinarReprogramacion(db, eventId, input, options = {}) 
     );
   }
 
-  const runner = typeof db.$transaction === "function"
-    ? (cb) => db.$transaction(cb, { isolationLevel: "ReadCommitted" })
-    : (cb) => cb(db);
+  // 3. Exigir una transacción Prisma real abierta desde el PrismaClient exterior
+  if (!db || typeof db.$transaction !== "function") {
+    throw new TypeError(
+      "coordinarReprogramacion exige un cliente Prisma con soporte de transacciones para abrir una transacción ReadCommitted"
+    );
+  }
 
-  return runner(async (tx) => {
-    // 1. Invoca el servicio de Recursos dentro de la transacción compartida
+  return db.$transaction(async (tx) => {
+    // 4. Invoca primero el servicio de Recursos dentro de la transacción compartida
     // Recursos bloquea: equipos en orden estable por ID -> evento FOR UPDATE
     const planRecursos = await reprogramarFn(tx, numericId, {
-      expectedStartsAt: input.expectedStartsAt,
-      expectedEndsAt: input.expectedEndsAt,
-      startsAt: input.startsAt,
-      endsAt: input.endsAt,
-      assignments: input.assignments || [],
+      expectedStartsAt: validatedInput.expectedStartsAt,
+      expectedEndsAt: validatedInput.expectedEndsAt,
+      startsAt: validatedInput.startsAt,
+      endsAt: validatedInput.endsAt,
+      assignments: validatedInput.assignments,
     });
 
-    // 2. Con el plan validado, actualiza el evento con el mismo tx y skipEventLock: true
+    // 5. Comprobar exhaustivamente el plan devuelto por Recursos antes de actualizar Eventos
+    if (!planRecursos || typeof planRecursos !== "object") {
+      throw new ConflictError("Plan de Recursos inválido o incompleto devuelto durante la reprogramación");
+    }
+
+    if (planRecursos.eventId !== numericId) {
+      throw new ConflictError("Discrepancia en identificador de evento devuelto en el plan de Recursos");
+    }
+
+    const planExpectedStart = new Date(planRecursos.expectedStartsAt).getTime();
+    const planExpectedEnd = new Date(planRecursos.expectedEndsAt).getTime();
+    const validExpectedStart = new Date(validatedInput.expectedStartsAt).getTime();
+    const validExpectedEnd = new Date(validatedInput.expectedEndsAt).getTime();
+
+    if (planExpectedStart !== validExpectedStart || planExpectedEnd !== validExpectedEnd) {
+      throw new ConflictError("Las fechas esperadas del plan de Recursos no coinciden con las fechas esperadas validadas");
+    }
+
+    const planNewStart = new Date(planRecursos.startsAt).getTime();
+    const planNewEnd = new Date(planRecursos.endsAt).getTime();
+    const validNewStart = new Date(validatedInput.startsAt).getTime();
+    const validNewEnd = new Date(validatedInput.endsAt).getTime();
+
+    if (planNewStart !== validNewStart || planNewEnd !== validNewEnd) {
+      throw new ConflictError("Las fechas nuevas del plan de Recursos no coinciden con las fechas nuevas validadas");
+    }
+
+    // 6. Con las fechas del plan comprobado, actualizar el evento con el mismo tx y skipEventLock: true
     const updatePayload = {
-      startsAt: input.startsAt,
-      endsAt: input.endsAt,
+      startsAt: planRecursos.startsAt instanceof Date ? planRecursos.startsAt.toISOString() : planRecursos.startsAt,
+      endsAt: planRecursos.endsAt instanceof Date ? planRecursos.endsAt.toISOString() : planRecursos.endsAt,
     };
-    if (input.title !== undefined) updatePayload.title = input.title;
-    if (input.clientId !== undefined) updatePayload.clientId = input.clientId;
-    if (input.eventTypeId !== undefined) updatePayload.eventTypeId = input.eventTypeId;
-    if (input.attendees !== undefined) updatePayload.attendees = input.attendees;
-    if (input.location !== undefined) updatePayload.location = input.location;
-    if (input.needs !== undefined) updatePayload.needs = input.needs;
+    if (validatedInput.title !== undefined) updatePayload.title = validatedInput.title;
+    if (validatedInput.clientId !== undefined) updatePayload.clientId = validatedInput.clientId;
+    if (validatedInput.eventTypeId !== undefined) updatePayload.eventTypeId = validatedInput.eventTypeId;
+    if (validatedInput.attendees !== undefined) updatePayload.attendees = validatedInput.attendees;
+    if (validatedInput.location !== undefined) updatePayload.location = validatedInput.location;
+    if (validatedInput.needs !== undefined) updatePayload.needs = validatedInput.needs;
 
     const eventoActualizado = await updateEvento(tx, numericId, updatePayload, {
       skipEventLock: true,
-      onScheduleChange: async (_innerTx, scheduleChangeData) => {
-        // Valida que el identificador y fechas coincidan estrictamente con el plan validado por Recursos
-        if (scheduleChangeData.eventId !== numericId) {
+      onScheduleChange: async (callbackTx, scheduleChangeData) => {
+        // Comprobar que el cliente recibido en el callback es exactamente el mismo tx
+        if (callbackTx !== tx) {
+          throw new ConflictError("El callback de reprogramación debe ejecutarse exactamente con la misma transacción compartida");
+        }
+
+        // Comprobar que el identificador corresponde al plan
+        if (scheduleChangeData.eventId !== planRecursos.eventId) {
           throw new ConflictError("Discrepancia en identificador de evento durante la reprogramación");
         }
-        const expStart = new Date(input.expectedStartsAt).getTime();
-        const expEnd = new Date(input.expectedEndsAt).getTime();
+
+        // Comprobar que las fechas anteriores y nuevas corresponden al plan
         const prevStart = new Date(scheduleChangeData.expectedSchedule.startsAt).getTime();
         const prevEnd = new Date(scheduleChangeData.expectedSchedule.endsAt).getTime();
+        const newStart = new Date(scheduleChangeData.newSchedule.startsAt).getTime();
+        const newEnd = new Date(scheduleChangeData.newSchedule.endsAt).getTime();
 
-        if (expStart !== prevStart || expEnd !== prevEnd) {
-          throw new ConflictError("Las fechas esperadas no coinciden con las registradas en el evento");
+        if (prevStart !== planExpectedStart || prevEnd !== planExpectedEnd) {
+          throw new ConflictError("Las fechas anteriores en el evento no coinciden con las fechas esperadas del plan");
+        }
+
+        if (newStart !== planNewStart || newEnd !== planNewEnd) {
+          throw new ConflictError("Las fechas nuevas en el evento no coinciden con las fechas nuevas del plan");
         }
       },
     });
@@ -399,7 +450,7 @@ export async function coordinarReprogramacion(db, eventId, input, options = {}) 
       event: eventoActualizado,
       recursosPlan: planRecursos,
     };
-  });
+  }, { isolationLevel: "ReadCommitted" });
 }
 
 
