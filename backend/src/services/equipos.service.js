@@ -1,7 +1,7 @@
 function equipmentWhere(filters = {}) {
   const where = { mode: "UNIT" };
   if (filters.name) where.name = { contains: filters.name.replace(/[\\%_]/g, "\\$&"), mode: "insensitive" };
-  if (filters.code) where.code = { contains: filters.code, mode: "insensitive" };
+  if (filters.code) where.code = { contains: filters.code.replace(/[\\%_]/g, "\\$&"), mode: "insensitive" };
   if (filters.category) where.category = { equals: filters.category, mode: "insensitive" };
   if (filters.status) where.status = filters.status;
   return where;
