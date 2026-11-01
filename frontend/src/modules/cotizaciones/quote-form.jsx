@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { LoaderCircle, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,6 +29,8 @@ const defaultValues = {
 
 export function QuoteForm({ onSaved }) {
   const [open, setOpen] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
+  const [dataError, setDataError] = useState("");
   const [clients, setClients] = useState([]);
   const [events, setEvents] = useState([]);
   const [serverError, setServerError] = useState("");
@@ -56,18 +58,30 @@ export function QuoteForm({ onSaved }) {
 
   const preview = getQuotePreview(watchedItems);
 
+  const fetchData = useCallback(async () => {
+    setLoadingData(true);
+    setDataError("");
+    try {
+      const [loadedClients, loadedEvents] = await Promise.all([
+        clientRequest(),
+        getEventos(),
+      ]);
+
+      setClients(Array.isArray(loadedClients) ? loadedClients : []);
+      setEvents(Array.isArray(loadedEvents) ? loadedEvents : []);
+    } catch (err) {
+      setDataError(err.message || "Error al cargar clientes o eventos desde el servidor.");
+    } finally {
+      setLoadingData(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (open) {
-      Promise.all([
-        clientRequest().catch(() => []),
-        getEventos().catch(() => []),
-      ]).then(([loadedClients, loadedEvents]) => {
-        setClients(Array.isArray(loadedClients) ? loadedClients : []);
-        setEvents(Array.isArray(loadedEvents) ? loadedEvents : []);
-      });
+      fetchData();
       setServerError("");
     }
-  }, [open]);
+  }, [open, fetchData]);
 
   // Filtrar eventos por el cliente seleccionado
   const availableEvents = events.filter((ev) => ev.clientId === selectedClientId);
@@ -78,10 +92,12 @@ export function QuoteForm({ onSaved }) {
     if (!next) {
       reset(defaultValues);
       setServerError("");
+      setDataError("");
     }
   }
 
   async function onSubmit(data) {
+    if (isSubmitting) return;
     setServerError("");
     try {
       const payload = {
@@ -100,7 +116,8 @@ export function QuoteForm({ onSaved }) {
       reset(defaultValues);
       if (onSaved) onSaved(result);
     } catch (failure) {
-      setServerError(failure.message);
+      // Prevención de pérdida de datos: el formulario no se resetea si falla
+      setServerError(failure.message || "Error al guardar la cotización");
     }
   }
 
@@ -121,6 +138,22 @@ export function QuoteForm({ onSaved }) {
           </DialogDescription>
         </DialogHeader>
 
+        {dataError ? (
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive p-3 rounded-md text-sm space-y-2 mb-2">
+            <p role="alert">No se pudieron cargar los datos necesarios: {dataError}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={fetchData}
+              disabled={loadingData}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loadingData ? "animate-spin" : ""}`} />
+              Reintentar carga
+            </Button>
+          </div>
+        ) : null}
+
         <form noValidate onSubmit={handleSubmit(onSubmit)} className="equipment-form">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="field">
@@ -128,12 +161,18 @@ export function QuoteForm({ onSaved }) {
               <select
                 id="quote-client"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={isSubmitting}
+                disabled={isSubmitting || loadingData}
                 {...register("clientId", {
                   onChange: () => setValue("eventId", ""), // Reset event when client changes
                 })}
               >
-                <option value="">Selecciona un cliente…</option>
+                <option value="">
+                  {loadingData
+                    ? "Cargando clientes…"
+                    : clients.length === 0
+                    ? "No hay clientes registrados"
+                    : "Selecciona un cliente…"}
+                </option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} {c.clientType === "empresa" ? "(Empresa)" : ""}
@@ -148,11 +187,13 @@ export function QuoteForm({ onSaved }) {
               <select
                 id="quote-event"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={isSubmitting || !selectedClientId}
+                disabled={isSubmitting || loadingData || !selectedClientId}
                 {...register("eventId")}
               >
                 <option value="">
-                  {!selectedClientId
+                  {loadingData
+                    ? "Cargando eventos…"
+                    : !selectedClientId
                     ? "Primero elige un cliente"
                     : availableEvents.length === 0
                     ? "Este cliente no tiene eventos registrados"
