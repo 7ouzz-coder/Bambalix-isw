@@ -184,31 +184,18 @@ export async function listTiposEvento(db) {
 
 /**
  * Consulta de agenda externa / pública para clientes.
- * Entrega únicamente eventos y campos autorizados filtrados estrictamente desde el backend.
- * No expone datos de clientes (id, nombre, contacto), notas internas (needs),
- * conteo de asistentes ni información comercial.
+ *
+ * El calendario público debe mostrar únicamente eventos confirmados para no
+ * publicar eventos en estado de borrador, cotización o pendientes de confirmación.
+ * Dado que el modelo de datos todavía no cuenta con un campo/estado formal de
+ * confirmación comercial acordado ni migrado, la publicación de eventos en la agenda
+ * pública se mantiene deshabilitada de forma controlada y explícita, sin publicar
+ * registros cuya confirmación no puede acreditarse y sin exigir login a los clientes.
  */
 export async function listEventosPublicos(db, filters = {}) {
-  const where = {};
-  let orderBy = { startsAt: "asc" };
-
-  if (filters.from && filters.to) {
-    where.startsAt = { lt: new Date(filters.to) };
-    where.endsAt = { gt: new Date(filters.from) };
-  }
-
-  return db.event.findMany({
-    where,
-    select: {
-      id: true,
-      title: true,
-      startsAt: true,
-      endsAt: true,
-      location: true,
-      eventType: { select: { id: true, name: true } },
-    },
-    orderBy,
-  });
+  // Mientras no exista el contrato real y modelo de confirmación comercial,
+  // la publicación de eventos permanece deshabilitada de forma segura retornando lista vacía.
+  return [];
 }
 
 export async function updateEvento(db, id, datos, options = {}) {

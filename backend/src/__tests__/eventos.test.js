@@ -251,68 +251,32 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
   });
 
   describe("GET /api/v1/events/public", () => {
-    it("retorna exclusivamente campos públicos autorizados y no expone clientes, notas o asistentes (200)", async () => {
-      const mockPublicEventos = [
+    it("mantiene deshabilitada la publicación pública (retorna lista vacía 200) para no publicar eventos no confirmados", async () => {
+      // Incluso si existen eventos en la base de datos cuya confirmación comercial no puede acreditarse
+      mockDb.event.findMany.mockResolvedValue([
         {
           id: 1,
-          title: "Festival Abierto",
+          title: "Evento Pendiente",
           startsAt: new Date("2026-12-01T10:00:00Z"),
           endsAt: new Date("2026-12-01T12:00:00Z"),
           location: "Parque Central",
-          eventType: { id: 1, name: "Comunitario" },
         },
-      ];
-      mockDb.event.findMany.mockResolvedValue(mockPublicEventos);
+      ]);
 
       const response = await request(app).get("/api/v1/events/public");
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveLength(1);
-      const ev = response.body[0];
-      expect(ev.title).toBe("Festival Abierto");
-      expect(ev.location).toBe("Parque Central");
-      expect(ev.client).toBeUndefined();
-      expect(ev.clientId).toBeUndefined();
-      expect(ev.needs).toBeUndefined();
-      expect(ev.attendees).toBeUndefined();
-      expect(mockDb.event.findMany).toHaveBeenCalledWith({
-        where: {},
-        select: {
-          id: true,
-          title: true,
-          startsAt: true,
-          endsAt: true,
-          location: true,
-          eventType: { select: { id: true, name: true } },
-        },
-        orderBy: { startsAt: "asc" },
-      });
+      expect(response.body).toEqual([]);
+      // No expone ni consulta los registros históricos como confirmados
+      expect(mockDb.event.findMany).not.toHaveBeenCalled();
     });
 
-    it("filtra eventos públicos por periodo semiabierto (200)", async () => {
-      const from = "2026-12-01T00:00:00.000Z";
-      const to = "2026-12-02T00:00:00.000Z";
-      mockDb.event.findMany.mockResolvedValue([]);
-
-      const response = await request(app)
-        .get(`/api/v1/events/public?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    it("permite la consulta pública sin requerir autenticación ni exponer datos privados", async () => {
+      const response = await request(app).get("/api/v1/events/public");
 
       expect(response.status).toBe(200);
-      expect(mockDb.event.findMany).toHaveBeenCalledWith({
-        where: {
-          startsAt: { lt: new Date(to) },
-          endsAt: { gt: new Date(from) },
-        },
-        select: {
-          id: true,
-          title: true,
-          startsAt: true,
-          endsAt: true,
-          location: true,
-          eventType: { select: { id: true, name: true } },
-        },
-        orderBy: { startsAt: "asc" },
-      });
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body).toHaveLength(0);
     });
 
     it("valida periodos en la consulta pública y rechaza rango invertido con 400", async () => {
