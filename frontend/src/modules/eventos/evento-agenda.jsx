@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Calendar, Clock, MapPin, Users, RefreshCw, Pencil, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,8 +37,9 @@ export function EventoAgenda({ revision, onEventoUpdated }) {
   const [error, setError] = useState("");
   const [editingEvento, setEditingEvento] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
+  const latestRequestRef = useRef(0);
 
-  const fetchAgenda = useCallback(async (fromDate, toDate) => {
+  const fetchAgenda = useCallback(async (fromDate, toDate, requestId) => {
     if (!fromDate || !toDate) {
       setError("Selecciona tanto la fecha de inicio como la de término.");
       return;
@@ -61,37 +62,44 @@ export function EventoAgenda({ revision, onEventoUpdated }) {
         from: f.toISOString(),
         to: t.toISOString(),
       });
-      setEventos(Array.isArray(data) ? data : []);
+      // Comprobar que no haya una solicitud posterior más reciente
+      if (requestId === latestRequestRef.current) {
+        setEventos(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
-      setError(err.message || "Error al consultar la agenda");
-      setEventos([]);
+      if (requestId === latestRequestRef.current) {
+        setError(err.message || "Error al consultar la agenda");
+      }
     } finally {
-      setLoading(false);
+      if (requestId === latestRequestRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
+  const triggerSearch = useCallback((fromDate, toDate) => {
+    const nextId = ++latestRequestRef.current;
+    fetchAgenda(fromDate, toDate, nextId);
+  }, [fetchAgenda]);
+
   useEffect(() => {
-    fetchAgenda(from, to);
-  }, [fetchAgenda, revision]);
+    triggerSearch(from, to);
+  }, [triggerSearch, revision]);
 
   function handleSearch(e) {
     e.preventDefault();
-    fetchAgenda(from, to);
+    triggerSearch(from, to);
   }
 
   function handlePreset(days) {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    // Periodo semiabierto coherente [start, end) con límite superior exclusivo
-    // 1 día ("Hoy"): [hoy 00:00, mañana 00:00) exactamente 24 horas sin el día extra
-    // 7 días: [hoy 00:00, hoy+7 00:00)
-    // 30 días: [hoy 00:00, hoy+30 00:00) contemplando cambio de mes automáticamente
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 0, 0, 0);
     const fStr = toDatetimeLocal(start);
     const tStr = toDatetimeLocal(end);
     setFrom(fStr);
     setTo(tStr);
-    fetchAgenda(fStr, tStr);
+    triggerSearch(fStr, tStr);
   }
 
   function formatTimeRange(startsAt, endsAt) {
