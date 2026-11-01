@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +20,26 @@ import { clientRequest } from "@/services/clientes";
 import { createQuote, quoteFormSchema } from "@/services/cotizaciones";
 import { getEventos } from "@/services/eventos";
 import { getQuotePreview } from "@/lib/cotizaciones";
+
+// Esquemas de validación para registros recibidos de la API (Paso 1)
+// Passthrough para permitir campos adicionales legítimos sin rechazarlos
+export const clientRecordSchema = z
+  .object({
+    id: z.string().trim().min(1, "El identificador del cliente es obligatorio"),
+    name: z.string().trim().min(2, "El nombre del cliente debe tener al menos 2 caracteres").max(120),
+  })
+  .passthrough();
+
+export const eventRecordSchema = z
+  .object({
+    id: z.coerce.number().int().positive("El identificador del evento debe ser un número entero positivo"),
+    clientId: z.string().trim().min(1, "El evento debe estar asociado a un cliente"),
+    title: z.string().trim().min(1, "El título del evento es obligatorio"),
+    startsAt: z.union([z.string(), z.date()]).refine((val) => !isNaN(new Date(val).getTime()), {
+      message: "La fecha de inicio del evento debe ser válida",
+    }),
+  })
+  .passthrough();
 
 const defaultValues = {
   clientId: "",
@@ -77,6 +98,21 @@ export function QuoteForm({ onSaved }) {
 
       if (!Array.isArray(loadedClients) || !Array.isArray(loadedEvents)) {
         throw new Error("El servidor respondió con un formato de datos inválido.");
+      }
+
+      // Validar cada registro recibido. Si alguno está mal formado, fallar toda la carga (no filtrar silenciosamente)
+      for (const client of loadedClients) {
+        const parseResult = clientRecordSchema.safeParse(client);
+        if (!parseResult.success) {
+          throw new Error("Se recibieron datos de cliente con formato inválido.");
+        }
+      }
+
+      for (const event of loadedEvents) {
+        const parseResult = eventRecordSchema.safeParse(event);
+        if (!parseResult.success) {
+          throw new Error("Se recibieron datos de evento con formato inválido.");
+        }
       }
 
       setClients(loadedClients);
