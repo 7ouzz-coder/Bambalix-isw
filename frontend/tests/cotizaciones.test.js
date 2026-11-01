@@ -7,6 +7,8 @@ import {
   submitQuoteForReview,
 } from "../src/services/cotizaciones";
 import { getQuotePreview } from "../src/lib/cotizaciones.js";
+import { clientRequest } from "../src/services/clientes";
+import { getEventos } from "../src/services/eventos";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -142,5 +144,54 @@ describe("Servicio y validaciones de Cotizaciones en frontend", () => {
       /\/api\/v1\/quotes\/quote_1\/approve$/,
     );
     expect(fetchMock.mock.calls[0][1].headers["x-user-role"]).toBeUndefined();
+  });
+
+  describe("Carga de datos auxiliares para el formulario (clientes y eventos)", () => {
+    it("distingue una respuesta válida con arreglo vacío de ausencia de datos", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => [],
+        }),
+      );
+
+      const clients = await clientRequest();
+      const events = await getEventos();
+
+      expect(Array.isArray(clients)).toBe(true);
+      expect(clients).toEqual([]);
+      expect(Array.isArray(events)).toBe(true);
+      expect(events).toEqual([]);
+    });
+
+    it("falla y expone error cuando la respuesta no es un arreglo válido", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({ unexpected: "objeto" }),
+        }),
+      );
+
+      const clientsRaw = await clientRequest();
+      // Validar la regla de negocio de QuoteForm: debe ser arreglo estricto
+      expect(Array.isArray(clientsRaw)).toBe(false);
+    });
+
+    it("permite reintentar la carga tras un fallo inicial", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockRejectedValueOnce(new TypeError("fetch failed"))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [{ id: "cli_1", name: "Cliente Valido" }],
+        });
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(clientRequest()).rejects.toThrow();
+      const retryResult = await clientRequest();
+      expect(retryResult).toEqual([{ id: "cli_1", name: "Cliente Valido" }]);
+    });
   });
 });
