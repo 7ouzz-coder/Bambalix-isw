@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle, Plus, RefreshCw, Trash2 } from "lucide-react";
@@ -31,9 +31,11 @@ export function QuoteForm({ onSaved }) {
   const [open, setOpen] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState("");
+  const [hasLoadedValidData, setHasLoadedValidData] = useState(false);
   const [clients, setClients] = useState([]);
   const [events, setEvents] = useState([]);
   const [serverError, setServerError] = useState("");
+  const loadRequestIdRef = useRef(0);
 
   const {
     register,
@@ -42,6 +44,7 @@ export function QuoteForm({ onSaved }) {
     watch,
     reset,
     setValue,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(quoteFormSchema),
@@ -59,27 +62,60 @@ export function QuoteForm({ onSaved }) {
   const preview = getQuotePreview(watchedItems);
 
   const fetchData = useCallback(async () => {
+    const currentRequestId = ++loadRequestIdRef.current;
     setLoadingData(true);
     setDataError("");
+    setHasLoadedValidData(false);
+
     try {
       const [loadedClients, loadedEvents] = await Promise.all([
         clientRequest(),
         getEventos(),
       ]);
 
-      setClients(Array.isArray(loadedClients) ? loadedClients : []);
-      setEvents(Array.isArray(loadedEvents) ? loadedEvents : []);
+      if (currentRequestId !== loadRequestIdRef.current) return;
+
+      if (!Array.isArray(loadedClients) || !Array.isArray(loadedEvents)) {
+        throw new Error("El servidor respondió con un formato de datos inválido.");
+      }
+
+      setClients(loadedClients);
+      setEvents(loadedEvents);
+      setHasLoadedValidData(true);
+
+      // Limpiar selecciones previas si ya no existen en la lista de datos válidos
+      const currentClientId = getValues("clientId");
+      const clientExists = loadedClients.some((c) => c.id === currentClientId);
+      if (currentClientId && !clientExists) {
+        setValue("clientId", "");
+        setValue("eventId", "");
+      } else {
+        const currentEventId = getValues("eventId");
+        const eventExists = loadedEvents.some(
+          (ev) => String(ev.id) === String(currentEventId) && ev.clientId === currentClientId
+        );
+        if (currentEventId && !eventExists) {
+          setValue("eventId", "");
+        }
+      }
     } catch (err) {
+      if (currentRequestId !== loadRequestIdRef.current) return;
       setDataError(err.message || "Error al cargar clientes o eventos desde el servidor.");
+      setHasLoadedValidData(false);
     } finally {
-      setLoadingData(false);
+      if (currentRequestId === loadRequestIdRef.current) {
+        setLoadingData(false);
+      }
     }
-  }, []);
+  }, [getValues, setValue]);
 
   useEffect(() => {
     if (open) {
       fetchData();
       setServerError("");
+    } else {
+      // Invalidar cualquier petición en vuelo si se cierra el diálogo
+      loadRequestIdRef.current++;
     }
   }, [open, fetchData]);
 
@@ -93,11 +129,26 @@ export function QuoteForm({ onSaved }) {
       reset(defaultValues);
       setServerError("");
       setDataError("");
+      setHasLoadedValidData(false);
+      setClients([]);
+      setEvents([]);
     }
   }
 
   async function onSubmit(data) {
-    if (isSubmitting) return;
+    // Bloquear si está enviando, cargando, hay error o aún no terminó una carga válida
+    if (isSubmitting || loadingData || !!dataError || !hasLoadedValidData) return;
+
+    // Validación estricta: asegurar que cliente y evento correspondan a la carga activa válida
+    const clientExists = clients.some((c) => c.id === data.clientId);
+    const eventExists = events.some(
+      (ev) => String(ev.id) === String(data.eventId) && ev.clientId === data.clientId
+    );
+    if (!clientExists || !eventExists) {
+      setServerError("El cliente o evento seleccionado ya no es válido en el sistema.");
+      return;
+    }
+
     setServerError("");
     try {
       const payload = {
@@ -116,10 +167,12 @@ export function QuoteForm({ onSaved }) {
       reset(defaultValues);
       if (onSaved) onSaved(result);
     } catch (failure) {
-      // Prevención de pérdida de datos: el formulario no se resetea si falla
+      // Prevención de pérdida de datos: el formulario no se resetea si falla el guardado
       setServerError(failure.message || "Error al guardar la cotización");
     }
   }
+
+  const isFormBlocked = isSubmitting || loadingData || !!dataError || !hasLoadedValidData;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -161,7 +214,7 @@ export function QuoteForm({ onSaved }) {
               <select
                 id="quote-client"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={isSubmitting || loadingData}
+                disabled={isSubmitting || loadingData || !hasLoadedValidData}
                 {...register("clientId", {
                   onChange: () => setValue("eventId", ""), // Reset event when client changes
                 })}
@@ -169,6 +222,8 @@ export function QuoteForm({ onSaved }) {
                 <option value="">
                   {loadingData
                     ? "Cargando clientes…"
+                    : dataError
+                    ? "Error al cargar clientes"
                     : clients.length === 0
                     ? "No hay clientes registrados"
                     : "Selecciona un cliente…"}
@@ -187,12 +242,14 @@ export function QuoteForm({ onSaved }) {
               <select
                 id="quote-event"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={isSubmitting || loadingData || !selectedClientId}
+                disabled={isSubmitting || loadingData || !hasLoadedValidData || !selectedClientId}
                 {...register("eventId")}
               >
                 <option value="">
                   {loadingData
                     ? "Cargando eventos…"
+                    : dataError
+                    ? "Error al cargar eventos"
                     : !selectedClientId
                     ? "Primero elige un cliente"
                     : availableEvents.length === 0
@@ -333,11 +390,16 @@ export function QuoteForm({ onSaved }) {
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isFormBlocked}>
               {isSubmitting ? (
                 <>
                   <LoaderCircle className="spin" aria-hidden="true" />
                   Guardando cotización…
+                </>
+              ) : loadingData ? (
+                <>
+                  <LoaderCircle className="spin" aria-hidden="true" />
+                  Cargando datos…
                 </>
               ) : (
                 "Guardar como Borrador"
