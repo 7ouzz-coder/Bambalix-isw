@@ -42,3 +42,9 @@ export const createQuoteSchema = z
       .min(1, "Debes incluir al menos un ítem en la cotización"),
   })
   .strict();
+
+export const listFiltersSchema = z.object({
+  clientId: z.string().trim().min(1).max(100).optional(),
+  eventId: z.string().regex(/^[1-9]\d*$/).transform(Number).pipe(z.number().int().max(2147483647)).optional(),
+  status: z.enum(["BORRADOR", "EN_REVISION", "APROBADA"]).optional(),
+}).strict();

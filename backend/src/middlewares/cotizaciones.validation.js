@@ -1,3 +1,4 @@
+import { listFiltersSchema } from "../schemas/cotizaciones.schema.js";
 import { createQuoteSchema } from "../schemas/cotizaciones.schema.js";
 
 function formatearErroresZod(error) {
@@ -44,5 +45,12 @@ export function requireManagerAuth(req, res, next) {
   }
 
   req.authenticatedManager = sessionUser;
+  next();
+}
+
+export function validateListFilters(req, res, next) {
+  const result = listFiltersSchema.safeParse(req.query);
+  if (!result.success) return res.status(400).json({ message: "Revisa los filtros de consulta" });
+  res.locals.listFilters = result.data;
   next();
 }
