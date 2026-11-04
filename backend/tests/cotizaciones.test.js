@@ -359,3 +359,19 @@ describe("Requisito 2: Elaboración de cotizaciones", () => {
     });
   });
 });
+
+describe("Filtros de consulta", () => {
+  it.each(['eventId=abc', 'eventId=0', 'eventId=1.5', 'eventId=2147483648', 'eventId=1&eventId=2', 'status=INVENTADO', 'clientId=', 'role=GERENTE'])("rechaza %s sin consultar la base", async query => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const api = request(createApp({ db: { quote: { findMany } }, webOrigin: "http://localhost:3000" }));
+    expect((await api.get(`/api/v1/quotes?${query}`)).status).toBe(400);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+});
+
+it("aplica solamente los filtros válidos del listado de cotizaciones", async () => {
+  const findMany = vi.fn().mockResolvedValue([]);
+  const api = request(createApp({ db: { quote: { findMany } }, webOrigin: "http://localhost:3000" }));
+  expect((await api.get("/api/v1/quotes?eventId=200&clientId=cli_100&status=BORRADOR")).status).toBe(200);
+  expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { eventId: 200, clientId: "cli_100", status: "BORRADOR" } }));
+});

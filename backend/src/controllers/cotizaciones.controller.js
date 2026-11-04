@@ -6,8 +6,7 @@ export function quoteController(db) {
   return {
     async listar(req, res, next) {
       try {
-        const { clientId, eventId, status } = req.query;
-        const quotes = await service.listar({ clientId, eventId, status });
+        const quotes = await service.listar(res.locals.listFilters);
         res.json(quotes);
       } catch (error) {
         next(error);

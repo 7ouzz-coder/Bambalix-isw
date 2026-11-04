@@ -1,3 +1,4 @@
+import { listFiltersSchema } from "../schemas/pagos.schema.js";
 import { createPaymentSchema, paymentVerifierSchema } from "../schemas/pagos.schema.js";
 
 export function requirePaymentVerifier(req, res, next) {
@@ -25,5 +26,12 @@ export function validateCreatePayment(req, res, next) {
     });
   }
   req.validatedBody = parseResult.data;
+  next();
+}
+
+export function validateListFilters(req, res, next) {
+  const result = listFiltersSchema.safeParse(req.query);
+  if (!result.success) return res.status(400).json({ message: "Revisa los filtros de consulta" });
+  res.locals.listFilters = result.data;
   next();
 }

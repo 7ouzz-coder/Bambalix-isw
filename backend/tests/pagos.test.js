@@ -243,3 +243,19 @@ describe("Requisito 3: Registrar y verificar pagos", () => {
     });
   });
 });
+
+describe("Filtros de consulta", () => {
+  it.each(['quoteId=', 'status=INVENTADO', 'method=TARJETA', 'quoteId=a&quoteId=b', 'role=GERENTE'])("rechaza %s sin consultar la base", async query => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const api = request(createApp({ db: { payment: { findMany } }, webOrigin: "http://localhost:3000" }));
+    expect((await api.get(`/api/v1/payments?${query}`)).status).toBe(400);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+});
+
+it("aplica solamente los filtros válidos del listado de pagos", async () => {
+  const findMany = vi.fn().mockResolvedValue([]);
+  const api = request(createApp({ db: { payment: { findMany } }, webOrigin: "http://localhost:3000" }));
+  expect((await api.get("/api/v1/payments?quoteId=quote_100&status=REGISTRADO&method=EFECTIVO")).status).toBe(200);
+  expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { quoteId: "quote_100", status: "REGISTRADO", method: "EFECTIVO" } }));
+});

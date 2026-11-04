@@ -39,3 +39,9 @@ export const createPaymentSchema = z
       .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
   })
   .strict();
+
+export const listFiltersSchema = z.object({
+  quoteId: z.string().trim().min(1).max(100).optional(),
+  status: z.enum(["REGISTRADO", "VERIFICADO", "ANULADO"]).optional(),
+  method: z.enum(["EFECTIVO", "TRANSFERENCIA"]).optional(),
+}).strict();

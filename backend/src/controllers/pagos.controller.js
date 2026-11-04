@@ -6,8 +6,7 @@ export function paymentController(db) {
   return {
     async listar(req, res, next) {
       try {
-        const { quoteId, status, method } = req.query;
-        const payments = await service.listar({ quoteId, status, method });
+        const payments = await service.listar(res.locals.listFilters);
         res.json(payments);
       } catch (error) {
         next(error);
