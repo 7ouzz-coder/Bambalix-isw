@@ -80,6 +80,8 @@ model Quote {
   createdAt  DateTime    @default(now()) @map("created_at")
   updatedAt  DateTime    @updatedAt @map("updated_at")
 
+  @@index([clientId])
+  @@index([eventId])
   @@map("quotes")
 }
 
@@ -93,6 +95,7 @@ model QuoteItem {
   subtotal  Decimal  @db.Decimal(12, 2)
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([quoteId])
   @@map("quote_items")
 }
 
@@ -109,5 +112,6 @@ model Payment {
   verifiedAt   DateTime? @map("verified_at")
   createdAt    DateTime  @default(now()) @map("created_at")
 
+  @@index([quoteId])
   @@map("payments")
 }

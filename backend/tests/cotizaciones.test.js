@@ -375,3 +375,34 @@ it("aplica solamente los filtros válidos del listado de cotizaciones", async ()
   expect((await api.get("/api/v1/quotes?eventId=200&clientId=cli_100&status=BORRADOR")).status).toBe(200);
   expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { eventId: 200, clientId: "cli_100", status: "BORRADOR" } }));
 });
+
+describe.skipIf(!process.env.TEST_DATABASE_URL)("Modelo comercial en PostgreSQL", () => {
+  it("conserva importes decimales, relaciones y valores iniciales", async () => {
+    const url = new URL(process.env.TEST_DATABASE_URL);
+    if (url.hostname !== "127.0.0.1" || !url.pathname.endsWith("_test")) throw new Error("Usa una base local exclusiva de pruebas");
+    const { PrismaClient } = await import("@prisma/client");
+    const { randomUUID } = await import("node:crypto");
+    const db = new PrismaClient({ datasources: { db: { url: url.href } } });
+    const rollback = new Error("Revertir datos de la prueba");
+    try {
+      await expect(db.$transaction(async tx => {
+        const client = await tx.client.create({ data: { name: "Cliente comercial", email: "comercial@example.test" } });
+        expect(client.clientType).toBe("persona");
+        const type = await tx.eventType.create({ data: { name: randomUUID() } });
+        const event = await tx.event.create({ data: { title: "Evento comercial", clientId: client.id, eventTypeId: type.id, startsAt: new Date("2029-01-01T10:00:00Z"), endsAt: new Date("2029-01-01T12:00:00Z"), attendees: 10 } });
+        const quote = await tx.quote.create({ data: { code: randomUUID(), clientId: client.id, eventId: event.id, total: "30.30", items: { create: { concept: "Servicio", quantity: 3, unitPrice: "10.10", subtotal: "30.30" } } }, include: { items: true } });
+        expect(quote.status).toBe("BORRADOR");
+        expect(quote.total.toFixed(2)).toBe("30.30");
+        expect(quote.items[0].unitPrice.toFixed(2)).toBe("10.10");
+        const payment = await tx.payment.create({ data: { quoteId: quote.id, amount: "15.15", method: "EFECTIVO" } });
+        expect(payment.status).toBe("REGISTRADO");
+        expect(payment.verifiedAt).toBeNull();
+        expect(payment.verifiedBy).toBeNull();
+        expect(quote.approvedAt).toBeNull();
+        const indexes = await tx.$queryRaw`SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`;
+        expect(indexes.map(row => row.indexname)).toEqual(expect.arrayContaining(["quotes_client_id_idx", "quotes_event_id_idx", "quote_items_quote_id_idx", "payments_quote_id_idx"]));
+        throw rollback;
+      })).rejects.toBe(rollback);
+    } finally { await db.$disconnect(); }
+  });
+});
