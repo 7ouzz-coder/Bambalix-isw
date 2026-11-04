@@ -272,6 +272,7 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
       setInputValue(conceptInput, "Servicio de Escenario", "input");
       setInputValue(qtyInput, "1", "input");
       setInputValue(priceInput, "200000", "input");
+      setInputValue(document.body.querySelector("#quote-notes"), "Montaje incluido", "input");
     });
 
     const form = document.body.querySelector("form.equipment-form");
@@ -283,7 +284,7 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
     expect(createQuoteSpy).toHaveBeenCalledWith({
       clientId: "cli_1",
       eventId: 101,
-      notes: null,
+      notes: "Montaje incluido",
       items: [
         {
           concept: "Servicio de Escenario",
@@ -293,12 +294,41 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
       ],
     });
 
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+    await act(async () => { container.querySelector("button.primary-action").click(); });
+    expect(document.body.querySelector("#quote-client").value).toBe("");
+    expect(document.body.querySelector("#quote-event").value).toBe("");
+    expect(document.body.querySelector("#quote-notes").value).toBe("");
+    expect(document.body.querySelector("#quote-concept-0").value).toBe("");
+    expect(document.body.querySelector("#quote-quantity-0").value).toBe("1");
+    expect(document.body.querySelector("#quote-price-0").value).toBe("0");
+    expect(document.body.querySelector("#quote-concept-1")).toBeNull();
     expect(onSavedMock).toHaveBeenCalledTimes(1);
     expect(onSavedMock).toHaveBeenCalledWith({
       id: "quote_saved_100",
       code: "COT-2026-100",
       status: "BORRADOR",
     });
+  });
+
+  it("utiliza los identificadores y textos normalizados al cargar", async () => {
+    vi.spyOn(clientesService, "clientRequest").mockResolvedValue([{ ...validClients[0], id: "  cli_1  ", name: "  Cliente normalizado  " }]);
+    vi.spyOn(eventosService, "getEventos").mockResolvedValue([{ ...validEvents[0], clientId: "  cli_1  " }]);
+    await openDialog();
+    const option = document.body.querySelector('#quote-client option[value="cli_1"]');
+    expect(option).not.toBeNull();
+    expect(option.textContent.trim()).toBe("Cliente normalizado (Empresa)");
+    await act(async () => { setInputValue(document.body.querySelector("#quote-client"), "cli_1", "change"); });
+    expect(document.body.querySelector('#quote-event option[value="101"]')).not.toBeNull();
+  });
+
+  it.each([true, false, "101", null, 0, -1, 1.5])("rechaza identificador de evento inválido %s", async id => {
+    vi.spyOn(clientesService, "clientRequest").mockResolvedValue(validClients);
+    vi.spyOn(eventosService, "getEventos").mockResolvedValue([{ ...validEvents[0], id }]);
+    const save = vi.spyOn(cotizacionesService, "createQuote");
+    await openDialog();
+    expect(document.body.querySelector('[role="alert"]').textContent).toContain("formato inválido");
+    expect(save).not.toHaveBeenCalled();
   });
 
   it("Una respuesta antigua no sobrescribe una apertura o carga posterior", async () => {
