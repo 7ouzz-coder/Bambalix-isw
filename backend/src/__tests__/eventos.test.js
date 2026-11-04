@@ -251,7 +251,7 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
   });
 
   describe("GET /api/v1/events/public", () => {
-    it("mantiene deshabilitada la publicación pública (retorna lista vacía 200) para no publicar eventos no confirmados", async () => {
+    it("informa la indisponibilidad explícita y controlada (503) mientras no exista el contrato de confirmación", async () => {
       // Incluso si existen eventos en la base de datos cuya confirmación comercial no puede acreditarse
       mockDb.event.findMany.mockResolvedValue([
         {
@@ -265,21 +265,24 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
 
       const response = await request(app).get("/api/v1/events/public");
 
-      expect(response.status).toBe(200);
-      expect(response.body).toEqual([]);
+      expect(response.status).toBe(503);
+      expect(response.body.unavailable).toBe(true);
+      expect(response.body.message).toContain("temporalmente deshabilitada");
       // No expone ni consulta los registros históricos como confirmados
       expect(mockDb.event.findMany).not.toHaveBeenCalled();
     });
 
-    it("permite la consulta pública sin requerir autenticación ni exponer datos privados", async () => {
+    it("permite la consulta pública sin requerir sesión y no expone datos privados", async () => {
       const response = await request(app).get("/api/v1/events/public");
 
-      expect(response.status).toBe(200);
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body).toHaveLength(0);
+      // No exige cabeceras de autorización ni cookie de sesión
+      expect(response.status).toBe(503);
+      expect(response.body.client).toBeUndefined();
+      expect(response.body.attendees).toBeUndefined();
+      expect(response.body.needs).toBeUndefined();
     });
 
-    it("valida periodos en la consulta pública y rechaza rango invertido con 400", async () => {
+    it("valida periodos en la consulta pública y rechaza rango invertido con 400 antes de responder", async () => {
       const response = await request(app)
         .get("/api/v1/events/public?from=2026-12-01T15:00:00.000Z&to=2026-12-01T10:00:00.000Z");
       expect(response.status).toBe(400);
