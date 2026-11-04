@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { getMaintenanceNotes } from "@/services/equipos";
+import { maintenanceFollowUpSchema } from "@/schemas/historial-recursos.schema";
 import { Button } from "@/components/ui/button";
 import { ListPagination } from "@/components/list-pagination";
 import { MaintenanceActionForm } from "./maintenance-action-form";
@@ -18,11 +19,12 @@ export function MaintenanceFollowUp({ equipmentId, maintenanceId, busy, onBack, 
     setState(previous => ({ ...previous, loading: true, error: "" }));
     getMaintenanceNotes(equipmentId, maintenanceId, { page }, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]) })
       .then(result => {
-        if (result?.maintenance?.id !== maintenanceId || !Array.isArray(result.items) || !Number.isInteger(result.total) || result.total < 0 || !Number.isInteger(result.pages) || result.pages < 1 || !Number.isInteger(result.page) || result.page < 1 || result.page > result.pages)
+        const parsed = maintenanceFollowUpSchema.safeParse(result);
+        if (!parsed.success || parsed.data.maintenance.id !== maintenanceId || parsed.data.maintenance.resourceId !== equipmentId)
           throw new Error("No se pudo consultar el seguimiento");
         if (!controller.signal.aborted) {
-          setState({ ...result, loading: false, error: "" });
-          if (result.page !== page) setPage(result.page);
+          setState({ ...parsed.data, loading: false, error: "" });
+          if (parsed.data.page !== page) setPage(parsed.data.page);
         }
       }).catch(error => { if (!controller.signal.aborted) setState(previous => ({ ...previous, loading: false, error: error.message })); });
     return () => controller.abort();
