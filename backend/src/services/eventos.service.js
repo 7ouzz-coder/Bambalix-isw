@@ -25,6 +25,15 @@ export class ConflictError extends Error {
   }
 }
 
+export class ServiceUnavailableError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ServiceUnavailableError";
+    this.statusCode = 503;
+  }
+}
+
+
 export function normalizeSpace(location) {
   if (!location || typeof location !== "string") return null;
   const trimmed = location.trim();
@@ -194,8 +203,10 @@ export async function listTiposEvento(db) {
  */
 export async function listEventosPublicos(db, filters = {}) {
   // Mientras no exista el contrato real y modelo de confirmación comercial,
-  // la publicación de eventos permanece deshabilitada de forma segura retornando lista vacía.
-  return [];
+  // la publicación de eventos permanece deshabilitada de forma explícita y controlada (503).
+  throw new ServiceUnavailableError(
+    "La publicación de la agenda pública se encuentra temporalmente deshabilitada hasta definir el contrato de confirmación de eventos."
+  );
 }
 
 export async function updateEvento(db, id, datos, options = {}) {

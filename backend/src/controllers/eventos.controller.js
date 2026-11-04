@@ -2,6 +2,7 @@ import {
   NotFoundError,
   ValidationError,
   ConflictError,
+  ServiceUnavailableError,
   createEvento,
   listEventos,
   listEventosPublicos,
@@ -45,6 +46,9 @@ export function listEventosPublicosController(db) {
       const eventos = await listEventosPublicos(db, query);
       res.json(eventos);
     } catch (error) {
+      if (error instanceof ServiceUnavailableError || error.statusCode === 503) {
+        return res.status(503).json({ message: error.message, unavailable: true });
+      }
       next(error);
     }
   };
