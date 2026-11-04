@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Calendar, Clock, MapPin, Users, RefreshCw, Pencil, AlertCircle } from "lucide-react";
+import { Calendar, Clock, MapPin, Users, RefreshCw, Pencil, AlertCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getEventos } from "@/services/eventos";
 import { EventoEditDialog } from "./evento-edit-dialog";
+import { eventosListSchema } from "@/schemas/eventos.schema";
 
 function toDatetimeLocal(d) {
   const pad = (n) => String(n).padStart(2, "0");
@@ -39,36 +40,52 @@ export function EventoAgenda({ revision, onEventoUpdated }) {
   const [editOpen, setEditOpen] = useState(false);
   const latestRequestRef = useRef(0);
 
+  const [queryState, setQueryState] = useState({ isInitial: true, hasLoaded: false });
+
   const fetchAgenda = useCallback(async (fromDate, toDate, requestId) => {
+    // Si la validación de fechas falla, se descartan consultas previas y se apaga el loading
     if (!fromDate || !toDate) {
       setError("Selecciona tanto la fecha de inicio como la de término.");
+      setLoading(false);
       return;
     }
     const f = new Date(fromDate);
     const t = new Date(toDate);
     if (isNaN(f.getTime()) || isNaN(t.getTime())) {
       setError("Las fechas seleccionadas no son válidas.");
+      setLoading(false);
       return;
     }
     if (t <= f) {
       setError("La fecha de término debe ser posterior a la de inicio.");
+      setLoading(false);
       return;
     }
 
     setLoading(true);
     setError("");
     try {
-      const data = await getEventos({
+      const rawData = await getEventos({
         from: f.toISOString(),
         to: t.toISOString(),
       });
-      // Comprobar que no haya una solicitud posterior más reciente
+
       if (requestId === latestRequestRef.current) {
-        setEventos(Array.isArray(data) ? data : []);
+        // Validar explícitamente la estructura recibida de la respuesta
+        const validation = eventosListSchema.safeParse(rawData);
+        if (!validation.success) {
+          setError("La respuesta del servidor tiene un formato inválido o registros defectuosos.");
+          setQueryState({ isInitial: false, hasLoaded: false });
+          return;
+        }
+
+        setEventos(validation.data);
+        setQueryState({ isInitial: false, hasLoaded: true });
       }
     } catch (err) {
       if (requestId === latestRequestRef.current) {
         setError(err.message || "Error al consultar la agenda");
+        setQueryState({ isInitial: false, hasLoaded: false });
       }
     } finally {
       if (requestId === latestRequestRef.current) {
@@ -191,18 +208,30 @@ export function EventoAgenda({ revision, onEventoUpdated }) {
         </form>
       </div>
 
-      {/* Mensajes de error */}
+      {/* Mensajes de error con opción de reintento */}
       {error && (
-        <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md" role="alert">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{error}</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md" role="alert">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs border-red-200 text-red-700 hover:bg-red-100 self-start sm:self-auto"
+            onClick={() => triggerSearch(from, to)}
+            disabled={loading}
+          >
+            <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reintentar
+          </Button>
         </div>
       )}
 
       {/* Resultados agrupados por día */}
       {loading ? (
         <p className="py-8 text-center text-sm text-muted-foreground">Consultando eventos del periodo en el servidor…</p>
-      ) : dayGroups.length === 0 ? (
+      ) : error && !queryState.hasLoaded ? null : dayGroups.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center">
           <Calendar className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
           <p className="text-sm font-medium text-foreground">No hay eventos en este periodo</p>

@@ -57,3 +57,33 @@ export const eventoFormSchema = z
       path: ["endsAt"],
     }
   );
+
+export const eventoItemSchema = z.object({
+  id: z.union([z.number().int(), z.string().min(1)]),
+  title: z.string().min(1, "El título es obligatorio"),
+  startsAt: z.union([z.string(), z.date()]).refine((val) => !isNaN(new Date(val).getTime()), {
+    message: "Fecha de inicio inválida",
+  }),
+  endsAt: z.union([z.string(), z.date()]).refine((val) => !isNaN(new Date(val).getTime()), {
+    message: "Fecha de término inválida",
+  }),
+  attendees: z.number().int().optional(),
+  location: z.string().nullable().optional(),
+  needs: z.string().nullable().optional(),
+  eventType: z
+    .object({
+      id: z.number().int().optional(),
+      name: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
+  client: z
+    .object({
+      id: z.string().optional(),
+      name: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
+});
+
+export const eventosListSchema = z.array(eventoItemSchema);
