@@ -58,32 +58,59 @@ export const eventoFormSchema = z
     }
   );
 
-export const eventoItemSchema = z.object({
-  id: z.union([z.number().int(), z.string().min(1)]),
-  title: z.string().min(1, "El título es obligatorio"),
-  startsAt: z.union([z.string(), z.date()]).refine((val) => !isNaN(new Date(val).getTime()), {
-    message: "Fecha de inicio inválida",
-  }),
-  endsAt: z.union([z.string(), z.date()]).refine((val) => !isNaN(new Date(val).getTime()), {
-    message: "Fecha de término inválida",
-  }),
-  attendees: z.number().int().optional(),
-  location: z.string().nullable().optional(),
-  needs: z.string().nullable().optional(),
-  eventType: z
-    .object({
-      id: z.number().int().optional(),
-      name: z.string().optional(),
-    })
-    .nullable()
-    .optional(),
-  client: z
-    .object({
-      id: z.string().optional(),
-      name: z.string().optional(),
-    })
-    .nullable()
-    .optional(),
-});
+export const eventoItemSchema = z
+  .object({
+    id: z
+      .number({ required_error: "El ID de evento es obligatorio" })
+      .int("El ID de evento debe ser un entero")
+      .positive("El ID de evento debe ser positivo")
+      .max(2147483647, "El ID de evento fuera de rango"),
+    title: z.string().min(1, "El título es obligatorio"),
+    startsAt: z
+      .string({ required_error: "La fecha de inicio es obligatoria" })
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "Fecha de inicio inválida",
+      }),
+    endsAt: z
+      .string({ required_error: "La fecha de término es obligatoria" })
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "Fecha de término inválida",
+      }),
+    attendees: z
+      .number()
+      .int("Los asistentes deben ser un número entero")
+      .min(1, "Debe haber al menos 1 asistente")
+      .max(100000, "Los asistentes no pueden superar 100.000")
+      .optional(),
+    location: z.string().nullable().optional(),
+    needs: z.string().nullable().optional(),
+    eventType: z
+      .object({
+        id: z.number().int().optional(),
+        name: z.string().optional(),
+      })
+      .nullable()
+      .optional(),
+    client: z
+      .object({
+        id: z.string().optional(),
+        name: z.string().optional(),
+      })
+      .nullable()
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      if (!data.startsAt || !data.endsAt) return true;
+      const start = new Date(data.startsAt);
+      const end = new Date(data.endsAt);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return true;
+      return end > start;
+    },
+    {
+      message: "La fecha de término debe ser posterior al inicio",
+      path: ["endsAt"],
+    }
+  );
 
 export const eventosListSchema = z.array(eventoItemSchema);
