@@ -32,7 +32,7 @@ export const clientRecordSchema = z
 
 export const eventRecordSchema = z
   .object({
-    id: z.coerce.number().int().positive("El identificador del evento debe ser un número entero positivo"),
+    id: z.number().int().positive("El identificador del evento debe ser un número entero positivo"),
     clientId: z.string().trim().min(1, "El evento debe estar asociado a un cliente"),
     title: z.string().trim().min(1, "El título del evento es obligatorio"),
     startsAt: z.union([z.string(), z.date()]).refine((val) => !isNaN(new Date(val).getTime()), {
@@ -100,34 +100,29 @@ export function QuoteForm({ onSaved }) {
         throw new Error("El servidor respondió con un formato de datos inválido.");
       }
 
-      // Validar cada registro recibido. Si alguno está mal formado, fallar toda la carga (no filtrar silenciosamente)
-      for (const client of loadedClients) {
-        const parseResult = clientRecordSchema.safeParse(client);
-        if (!parseResult.success) {
-          throw new Error("Se recibieron datos de cliente con formato inválido.");
-        }
+      const parsedClients = z.array(clientRecordSchema).safeParse(loadedClients);
+      const parsedEvents = z.array(eventRecordSchema).safeParse(loadedEvents);
+      if (!parsedClients.success) {
+        throw new Error("Se recibieron datos de cliente con formato inválido.");
       }
-
-      for (const event of loadedEvents) {
-        const parseResult = eventRecordSchema.safeParse(event);
-        if (!parseResult.success) {
-          throw new Error("Se recibieron datos de evento con formato inválido.");
-        }
+      if (!parsedEvents.success) {
+        throw new Error("Se recibieron datos de evento con formato inválido.");
       }
-
-      setClients(loadedClients);
-      setEvents(loadedEvents);
+      const clients = parsedClients.data;
+      const events = parsedEvents.data;
+      setClients(clients);
+      setEvents(events);
       setHasLoadedValidData(true);
 
       // Limpiar selecciones previas si ya no existen en la lista de datos válidos
       const currentClientId = getValues("clientId");
-      const clientExists = loadedClients.some((c) => c.id === currentClientId);
+      const clientExists = clients.some((c) => c.id === currentClientId);
       if (currentClientId && !clientExists) {
         setValue("clientId", "");
         setValue("eventId", "");
       } else {
         const currentEventId = getValues("eventId");
-        const eventExists = loadedEvents.some(
+        const eventExists = events.some(
           (ev) => String(ev.id) === String(currentEventId) && ev.clientId === currentClientId
         );
         if (currentEventId && !eventExists) {
