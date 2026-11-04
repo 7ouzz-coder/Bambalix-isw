@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { getEquipmentReplacements } from "@/services/equipos";
+import { replacementPageSchema } from "@/schemas/historial-recursos.schema";
 import { Button } from "@/components/ui/button";
 import { ListPagination } from "@/components/list-pagination";
 import { ReplacementRequestForm } from "./replacement-request-form";
@@ -24,12 +25,12 @@ export function EquipmentReplacements({ equipment, assignment, busy, onBack }) {
     setState(previous => ({ ...previous, loading: true, error: "" }));
     getEquipmentReplacements(equipment.id, assignment.id, { page }, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]) })
       .then(result => {
-        if (!Array.isArray(result?.items) || !Number.isInteger(result.total) || result.total < 0 || !Number.isInteger(result.pages) || result.pages < 1 || !Number.isInteger(result.page) || result.page < 1 || result.page > result.pages || typeof result.canDecide !== "boolean" ||
-            (result.assignmentReleasedAt !== null && (typeof result.assignmentReleasedAt !== "string" || !Number.isFinite(Date.parse(result.assignmentReleasedAt)))))
+        const parsed = replacementPageSchema.safeParse(result);
+        if (!parsed.success || parsed.data.items.some(item => item.assignmentId !== assignment.id))
           throw new Error("No se pudieron consultar los reemplazos");
         if (!controller.signal.aborted) {
-          setState({ ...result, loading: false, error: "" });
-          if (result.page !== page) setPage(result.page);
+          setState({ ...parsed.data, loading: false, error: "" });
+          if (parsed.data.page !== page) setPage(parsed.data.page);
         }
       }).catch(error => { if (!controller.signal.aborted) setState(previous => ({ ...previous, loading: false, error: error.message, canDecide: false })); });
     return () => controller.abort();
@@ -47,7 +48,7 @@ export function EquipmentReplacements({ equipment, assignment, busy, onBack }) {
     {notice && <p role="status" className="equipment-status-notice">{notice}</p>}
     {creating ? <ReplacementRequestForm equipmentId={equipment.id} assignmentId={assignment.id} busy={busy} onSaved={saved} onCancel={() => setCreating(false)} />
       : decision ? <ReplacementDecisionForm equipmentId={equipment.id} assignmentId={assignment.id} replacement={decision.replacement} status={decision.status} busy={busy} onSaved={saved} onCancel={() => setDecision(null)} />
-      : !originalReleased && <Button type="button" onClick={() => { setNotice(""); setCreating(true); }}>Solicitar reemplazo</Button>}
+      : !originalReleased && <Button type="button" disabled={state.loading || Boolean(state.error)} onClick={() => { setNotice(""); setCreating(true); }}>Solicitar reemplazo</Button>}
     {state.loading ? <p role="status">Consultando solicitudes…</p> : state.error ? <><p role="alert" className="error-message">{state.error}</p><Button variant="outline" disabled={editing} onClick={() => setAttempt(value => value + 1)}>Reintentar</Button></> : <>
       {!state.canDecide && <p className="form-note">Aprobar o rechazar requiere una sesión de gerente validada por el servidor.</p>}
       {!state.items.length ? <p>No hay solicitudes de reemplazo.</p> : <ol>{state.items.map(item => <li key={item.id}>

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ListPagination } from "@/components/list-pagination";
 import { maintenanceFormSchema } from "@/schemas/mantenciones.schema";
+import { maintenancePageSchema } from "@/schemas/historial-recursos.schema";
 import { createEquipmentMaintenance, getEquipmentMaintenances } from "@/services/equipos";
 import { MaintenanceFollowUp } from "./maintenance-follow-up";
 
@@ -31,11 +32,12 @@ function MaintenancePanel({ equipment, busy, onClose }) {
     setHistory(previous => ({ ...previous, loading: true, error: "" }));
     getEquipmentMaintenances(equipment.id, { page }, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]) })
       .then(result => {
-        if (!Array.isArray(result?.items) || !Number.isInteger(result.total) || result.total < 0 || !Number.isInteger(result.pages) || result.pages < 1 || !Number.isInteger(result.page) || result.page < 1 || result.page > result.pages)
+        const parsed = maintenancePageSchema.safeParse(result);
+        if (!parsed.success || parsed.data.items.some(item => item.resourceId !== equipment.id))
           throw new Error("No se pudieron consultar las mantenciones");
         if (!controller.signal.aborted) {
-          setHistory({ loading: false, items: result.items, total: result.total, pages: result.pages, error: "" });
-          if (result.page !== page) setPage(result.page);
+          setHistory({ ...parsed.data, loading: false, error: "" });
+          if (parsed.data.page !== page) setPage(parsed.data.page);
         }
       }).catch(failure => {
         if (!controller.signal.aborted) setHistory({ loading: false, items: [], total: 0, pages: 1, error: failure.message });
