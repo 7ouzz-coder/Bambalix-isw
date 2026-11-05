@@ -3,8 +3,10 @@ import cors from "cors";
 import helmet from "helmet";
 import { equipmentRoutes } from "./routes/equipos.routes.js";
 import { vehicleRoutes } from "./routes/vehiculos.routes.js";
-import { clientRoutes } from "./modules/clientes/clientes.routes.js";
+import { clientRoutes } from "./routes/clientes.routes.js";
 import { eventosRoutes } from "./modules/eventos/eventos.routes.js";
+import { quoteRoutes } from "./routes/cotizaciones.routes.js";
+import { paymentRoutes } from "./routes/pagos.routes.js";
 
 export function createApp({ db, webOrigin }) {
   const app = express();
@@ -25,6 +27,8 @@ export function createApp({ db, webOrigin }) {
   app.use("/api/v1/operations/vehicles", vehicleRoutes(db));
   app.use("/api/v1/clients", clientRoutes(db));
   app.use("/api/v1/events", eventosRoutes(db));
+  app.use("/api/v1/quotes", quoteRoutes(db));
+  app.use("/api/v1/payments", paymentRoutes(db));
 
   app.use((_req, res) => res.status(404).json({ message: "Ruta no encontrada" }));
   app.use((error, _req, res, _next) => {
