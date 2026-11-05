@@ -23,7 +23,6 @@ const defaultValues = {
   method: "TRANSFERENCIA",
   amount: "",
   reference: "",
-  registeredBy: "",
 };
 
 export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
@@ -87,7 +86,6 @@ export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
         method: data.method,
         amount: Number(data.amount),
         reference: data.reference ? data.reference.trim() : null,
-        registeredBy: data.registeredBy ? data.registeredBy.trim() : null,
       };
 
       const result = await registerPayment(payload);
@@ -223,17 +221,7 @@ export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
             />
           </div>
 
-          <div className="field">
-            <Label htmlFor="payment-registeredBy">Recepcionado por (opcional)</Label>
-            <Input
-              id="payment-registeredBy"
-              type="text"
-              placeholder="Ej. Juan Recepción Comercial"
-              maxLength={120}
-              disabled={isSubmitting}
-              {...register("registeredBy")}
-            />
-          </div>
+          <p className="text-sm text-muted-foreground">El registro quedará asociado a tu cuenta.</p>
 
           <p className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/30 p-2.5 rounded-md border border-amber-200 dark:border-amber-900">
             <strong>Importante:</strong> Registrar la recepción no disminuye inmediatamente el saldo disponible hasta que el pago sea formalmente verificado.

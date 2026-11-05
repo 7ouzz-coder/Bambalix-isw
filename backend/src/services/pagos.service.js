@@ -93,7 +93,13 @@ export function paymentService(
       };
     },
 
-    async registrarRecepcion(data) {
+    async registrarRecepcion(data, actor) {
+      const identity = paymentVerifierSchema.safeParse(actor);
+      if (!identity.success) {
+        const error = new Error("Se requiere una sesión interna válida para registrar pagos");
+        error.statusCode = 401;
+        throw error;
+      }
       return db.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM quotes WHERE id = ${data.quoteId} FOR UPDATE`;
         const quote = await tx.quote.findUnique({
@@ -132,7 +138,7 @@ export function paymentService(
             amount: montoPago,
             reference: data.reference || null,
             status: "REGISTRADO",
-            registeredBy: data.registeredBy || "Recepción Comercial",
+            registeredBy: identity.data.id,
           },
           include: {
             quote: {
