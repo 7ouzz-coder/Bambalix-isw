@@ -1,0 +1,26 @@
+.dialog {
+  width: calc(100% - 2rem);
+  max-width: 42rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.panel {
+  min-width: 0;
+}
+
+.panel :global(.equipment-form) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.panel :global(.field) {
+  min-width: 0;
+}
+
+.panel :global(.list-pagination) {
+  padding-inline: 0;
+}
+
+.panel :global(.equipment-filter-actions),
+.panel :global(.form-actions) {
+  flex-wrap: wrap;
+}
