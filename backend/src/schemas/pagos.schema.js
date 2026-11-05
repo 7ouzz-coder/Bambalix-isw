@@ -30,13 +30,6 @@ export const createPaymentSchema = z
       .optional()
       .nullable()
       .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
-    registeredBy: z
-      .string()
-      .trim()
-      .max(120, "El nombre de quien registra no puede exceder 120 caracteres")
-      .optional()
-      .nullable()
-      .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
   })
   .strict();
 

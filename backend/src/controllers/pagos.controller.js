@@ -39,7 +39,7 @@ export function paymentController(db) {
 
     async registrarRecepcion(req, res, next) {
       try {
-        const nuevoPago = await service.registrarRecepcion(req.validatedBody || req.body);
+        const nuevoPago = await service.registrarRecepcion(req.validatedBody, req.user);
         res.status(201).json(nuevoPago);
       } catch (error) {
         if (error.statusCode) {

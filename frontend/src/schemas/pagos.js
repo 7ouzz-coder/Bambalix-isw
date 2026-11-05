@@ -16,10 +16,4 @@ export const paymentFormSchema = z.object({
     .max(120, "La referencia admite hasta 120 caracteres")
     .optional()
     .or(z.literal("")),
-  registeredBy: z
-    .string()
-    .trim()
-    .max(120, "El nombre admite hasta 120 caracteres")
-    .optional()
-    .or(z.literal("")),
 });
