@@ -60,7 +60,7 @@ export function EventoWorkspace() {
         </Button>
       </div>
 
-      {activeView === "agenda" ? (
+      <div className={activeView === "agenda" ? "block" : "hidden"}>
         <EventoAgenda
           revision={revision}
           onEventoUpdated={(evento) => {
@@ -68,7 +68,8 @@ export function EventoWorkspace() {
             setRevision((prev) => prev + 1);
           }}
         />
-      ) : (
+      </div>
+      <div className={activeView === "lista" ? "block" : "hidden"}>
         <EventoList
           revision={revision}
           onEventoUpdated={(evento) => {
@@ -76,7 +77,7 @@ export function EventoWorkspace() {
             setRevision((prev) => prev + 1);
           }}
         />
-      )}
+      </div>
     </section>
   );
 }
