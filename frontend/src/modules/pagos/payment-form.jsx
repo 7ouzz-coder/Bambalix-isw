@@ -31,6 +31,11 @@ export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
   const [financialSummary, setFinancialSummary] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [quotesLoading, setQuotesLoading] = useState(false);
+  const [quotesError, setQuotesError] = useState("");
+  const [summaryError, setSummaryError] = useState("");
+  const [quotesAttempt, setQuotesAttempt] = useState(0);
+  const [summaryAttempt, setSummaryAttempt] = useState(0);
 
   const {
     register,
@@ -48,31 +53,35 @@ export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
   const selectedMethod = watch("method");
 
   useEffect(() => {
-    if (open) {
-      getQuotes()
-        .then((items) => setQuotes(Array.isArray(items) ? items : []))
-        .catch(() => setQuotes([]));
-      setServerError("");
-    }
-  }, [open]);
+    if (!open) return;
+    let active = true;
+    setQuotesLoading(true); setQuotesError(""); setQuotes([]);
+    getQuotes().then(items => {
+      if (!Array.isArray(items)) throw new Error("No se pudieron consultar las cotizaciones");
+      if (active) setQuotes(items);
+    }).catch(error => { if (active) setQuotesError(error.message || "No se pudieron consultar las cotizaciones"); })
+      .finally(() => { if (active) setQuotesLoading(false); });
+    return () => { active = false; };
+  }, [open, quotesAttempt]);
 
   useEffect(() => {
-    if (selectedQuoteId) {
-      setLoadingSummary(true);
-      getQuoteFinancialSummary(selectedQuoteId)
-        .then((summary) => setFinancialSummary(summary))
-        .catch(() => setFinancialSummary(null))
-        .finally(() => setLoadingSummary(false));
-    } else {
-      setFinancialSummary(null);
-    }
-  }, [selectedQuoteId]);
+    let active = true;
+    setFinancialSummary(null); setSummaryError("");
+    if (!open || !selectedQuoteId) { setLoadingSummary(false); return; }
+    setLoadingSummary(true);
+    getQuoteFinancialSummary(selectedQuoteId).then(summary => {
+      if (active) setFinancialSummary(summary);
+    }).catch(error => { if (active) setSummaryError(error.message || "No se pudo consultar el saldo"); })
+      .finally(() => { if (active) setLoadingSummary(false); });
+    return () => { active = false; };
+  }, [open, selectedQuoteId, summaryAttempt]);
 
   function handleOpenChange(next) {
     if (isSubmitting) return;
     setOpen(next);
+    setServerError("");
     if (!next) {
-      reset(defaultValues);
+      reset(preselectedQuoteId ? { ...defaultValues, quoteId: preselectedQuoteId } : defaultValues);
       setFinancialSummary(null);
       setServerError("");
     }
@@ -80,6 +89,7 @@ export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
 
   async function onSubmit(data) {
     setServerError("");
+    if (quotesLoading || quotesError || loadingSummary || summaryError || !financialSummary) return;
     try {
       const payload = {
         quoteId: data.quoteId,
@@ -118,8 +128,9 @@ export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
             <Label htmlFor="payment-quote">Cotización asociada *</Label>
             <select
               id="payment-quote"
+              value={selectedQuoteId || ""}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={isSubmitting || Boolean(preselectedQuoteId)}
+              disabled={isSubmitting || quotesLoading || Boolean(quotesError) || Boolean(preselectedQuoteId)}
               {...register("quoteId")}
             >
               <option value="">Selecciona la cotización a abonar…</option>
@@ -132,6 +143,9 @@ export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
             {errors.quoteId ? <p className="field-error">{errors.quoteId.message}</p> : null}
           </div>
 
+          {quotesLoading && <p role="status">Consultando cotizaciones…</p>}
+          {quotesError && <div><p role="alert">{quotesError}</p><Button type="button" onClick={() => setQuotesAttempt(value => value + 1)}>Reintentar cotizaciones</Button></div>}
+          {summaryError && <div><p role="alert">{summaryError}</p><Button type="button" onClick={() => setSummaryAttempt(value => value + 1)}>Reintentar saldo</Button></div>}
           {loadingSummary ? (
             <p className="text-xs text-muted-foreground animate-pulse">Consultando saldo de la cotización…</p>
           ) : financialSummary ? (
@@ -242,7 +256,7 @@ export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || quotesLoading || Boolean(quotesError) || loadingSummary || Boolean(summaryError) || !financialSummary}>
               {isSubmitting ? (
                 <>
                   <LoaderCircle className="spin" aria-hidden="true" />
