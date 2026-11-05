@@ -23,11 +23,50 @@ function toDatetimeLocal(isoString) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+function getFormValues(evento) {
+  if (!evento) {
+    return {
+      title: "",
+      clientId: "",
+      eventTypeId: "",
+      startsAt: "",
+      endsAt: "",
+      attendees: "",
+      location: "",
+      needs: "",
+    };
+  }
+
+  const clientId =
+    evento.clientId ??
+    (typeof evento.client === "object" ? evento.client?.id : evento.client) ??
+    "";
+
+  const rawEventTypeId =
+    evento.eventTypeId ??
+    (typeof evento.eventType === "object" ? evento.eventType?.id : evento.eventType);
+  const eventTypeId =
+    rawEventTypeId !== undefined && rawEventTypeId !== null ? String(rawEventTypeId) : "";
+
+  return {
+    title: evento.title || "",
+    clientId: String(clientId),
+    eventTypeId,
+    startsAt: toDatetimeLocal(evento.startsAt),
+    endsAt: toDatetimeLocal(evento.endsAt),
+    attendees: evento.attendees !== undefined && evento.attendees !== null ? String(evento.attendees) : "",
+    location: evento.location || "",
+    needs: evento.needs || "",
+  };
+}
+
 export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
   const [clientes, setClientes] = useState([]);
   const [tipos, setTipos] = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [optionsLoaded, setOptionsLoaded] = useState(false);
 
   const {
     register,
@@ -36,29 +75,53 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
     formState: { errors },
   } = useForm({
     resolver: zodResolver(eventoFormSchema),
+    defaultValues: getFormValues(evento),
   });
 
   useEffect(() => {
-    if (evento && open) {
+    let isMounted = true;
+
+    if (open && evento) {
       setError("");
-      reset({
-        title: evento.title || "",
-        clientId: evento.clientId || evento.client?.id || "",
-        eventTypeId: String(evento.eventTypeId || evento.eventType?.id || ""),
-        startsAt: toDatetimeLocal(evento.startsAt),
-        endsAt: toDatetimeLocal(evento.endsAt),
-        attendees: evento.attendees !== undefined ? String(evento.attendees) : "",
-        location: evento.location || "",
-        needs: evento.needs || "",
-      });
+      setLoadingOptions(true);
+      setOptionsLoaded(false);
+
+      // Precargar los valores conocidos inmediatamente en el formulario
+      const initialValues = getFormValues(evento);
+      reset(initialValues);
 
       Promise.all([getClientes(), getTiposEvento()])
         .then(([cList, tList]) => {
-          setClientes(cList);
-          setTipos(tList);
+          if (!isMounted) return;
+          const safeCList = Array.isArray(cList) ? cList : [];
+          const safeTList = Array.isArray(tList) ? tList : [];
+          setClientes(safeCList);
+          setTipos(safeTList);
+          setOptionsLoaded(true);
+          // Re-sincronizar los valores una vez que las opciones de los select están disponibles en el DOM
+          reset(getFormValues(evento));
         })
-        .catch(() => setError("Error al cargar clientes o tipos de evento."));
+        .catch(() => {
+          if (!isMounted) return;
+          setError("Error al cargar clientes o tipos de evento. No es posible editar el evento.");
+        })
+        .finally(() => {
+          if (isMounted) {
+            setLoadingOptions(false);
+          }
+        });
+    } else {
+      // Limpiar estado al cerrar
+      setClientes([]);
+      setTipos([]);
+      setError("");
+      setOptionsLoaded(false);
+      reset(getFormValues(null));
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [evento, open, reset]);
 
   async function onSubmit(data) {
@@ -123,12 +186,15 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
               <Label htmlFor="edit-client">Cliente *</Label>
               <select
                 id="edit-client"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                disabled={loadingOptions}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 {...register("clientId")}
                 aria-invalid={Boolean(errors.clientId)}
                 aria-describedby={errors.clientId ? "edit-client-error" : undefined}
               >
-                <option value="">Seleccionar...</option>
+                <option value="">
+                  {loadingOptions ? "Cargando clientes..." : "Seleccionar..."}
+                </option>
                 {clientes.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -146,12 +212,15 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
               <Label htmlFor="edit-eventType">Tipo de evento *</Label>
               <select
                 id="edit-eventType"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                disabled={loadingOptions}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 {...register("eventTypeId")}
                 aria-invalid={Boolean(errors.eventTypeId)}
                 aria-describedby={errors.eventTypeId ? "edit-eventType-error" : undefined}
               >
-                <option value="">Seleccionar...</option>
+                <option value="">
+                  {loadingOptions ? "Cargando tipos de evento..." : "Seleccionar..."}
+                </option>
                 {tipos.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -241,7 +310,7 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || loadingOptions || !optionsLoaded}>
               {loading ? "Guardando..." : "Guardar cambios"}
             </Button>
           </div>
