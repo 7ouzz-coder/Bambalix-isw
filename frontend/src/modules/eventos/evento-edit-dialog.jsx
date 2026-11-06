@@ -72,6 +72,7 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(eventoFormSchema),
@@ -86,7 +87,7 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
       setLoadingOptions(true);
       setOptionsLoaded(false);
 
-      // Precargar los valores conocidos inmediatamente en el formulario
+      // Precargar los valores del evento inmediatamente al abrir
       const initialValues = getFormValues(evento);
       reset(initialValues);
 
@@ -98,8 +99,11 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
           setClientes(safeCList);
           setTipos(safeTList);
           setOptionsLoaded(true);
-          // Re-sincronizar los valores una vez que las opciones de los select están disponibles en el DOM
-          reset(getFormValues(evento));
+          // Sincronizar únicamente los selectores con las opciones cargadas en el DOM,
+          // sin reiniciar el resto del formulario para no pisar ediciones del usuario (ej: título)
+          const targetValues = getFormValues(evento);
+          setValue("clientId", targetValues.clientId, { shouldValidate: true, shouldDirty: false });
+          setValue("eventTypeId", targetValues.eventTypeId, { shouldValidate: true, shouldDirty: false });
         })
         .catch(() => {
           if (!isMounted) return;
@@ -122,7 +126,7 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
     return () => {
       isMounted = false;
     };
-  }, [evento, open, reset]);
+  }, [evento, open, reset, setValue]);
 
   async function onSubmit(data) {
     if (!evento?.id) return;
