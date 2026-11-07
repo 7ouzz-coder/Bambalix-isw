@@ -1,13 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Pencil } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getEventos } from "@/services/eventos";
+import { EventoEditDialog } from "./evento-edit-dialog";
 
-export function EventoList({ revision }) {
+export function EventoList({ revision, onEventoUpdated }) {
   const [eventos, setEventos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editingEvento, setEditingEvento] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -16,7 +21,7 @@ export function EventoList({ revision }) {
         setEventos(data);
         setError("");
       })
-      .catch((err) => setError("Error al cargar la lista de eventos."))
+      .catch(() => setError("Error al cargar la lista de eventos."))
       .finally(() => setLoading(false));
   }, [revision]);
 
@@ -29,6 +34,16 @@ export function EventoList({ revision }) {
       hour: "2-digit",
       minute: "2-digit",
     });
+  }
+
+  function handleEditClick(evento) {
+    setEditingEvento(evento);
+    setEditOpen(true);
+  }
+
+  function handleSaved(updated) {
+    setEventos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    onEventoUpdated?.(updated);
   }
 
   if (loading) {
@@ -44,31 +59,55 @@ export function EventoList({ revision }) {
   }
 
   return (
-    <div className="rounded-md border mt-4">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Título</TableHead>
-            <TableHead>Cliente</TableHead>
-            <TableHead>Tipo</TableHead>
-            <TableHead>Inicio</TableHead>
-            <TableHead>Término</TableHead>
-            <TableHead className="text-right">Asistentes</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {eventos.map((e) => (
-            <TableRow key={e.id}>
-              <TableCell className="font-medium">{e.title}</TableCell>
-              <TableCell>{e.client?.name || "-"}</TableCell>
-              <TableCell>{e.eventType?.name || "-"}</TableCell>
-              <TableCell>{formatDate(e.startsAt)}</TableCell>
-              <TableCell>{formatDate(e.endsAt)}</TableCell>
-              <TableCell className="text-right">{e.attendees}</TableCell>
+    <>
+      <div className="rounded-md border mt-4">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Título</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Inicio</TableHead>
+              <TableHead>Término</TableHead>
+              <TableHead>Lugar</TableHead>
+              <TableHead className="text-right">Asistentes</TableHead>
+              <TableHead className="text-center w-[100px]">Acciones</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+          </TableHeader>
+          <TableBody>
+            {eventos.map((e) => (
+              <TableRow key={e.id}>
+                <TableCell className="font-medium">{e.title}</TableCell>
+                <TableCell>{e.client?.name || "-"}</TableCell>
+                <TableCell>{e.eventType?.name || "-"}</TableCell>
+                <TableCell>{formatDate(e.startsAt)}</TableCell>
+                <TableCell>{formatDate(e.endsAt)}</TableCell>
+                <TableCell>{e.location || "—"}</TableCell>
+                <TableCell className="text-right">{e.attendees}</TableCell>
+                <TableCell className="text-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => handleEditClick(e)}
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1" />
+                    Editar
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <EventoEditDialog
+        evento={editingEvento}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={handleSaved}
+      />
+    </>
   );
 }
+
