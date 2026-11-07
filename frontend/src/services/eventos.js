@@ -1,4 +1,4 @@
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL;
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const API_BASE = rawApiUrl.endsWith("/api/v1") ? rawApiUrl : `${rawApiUrl.replace(/\/$/, "")}/api/v1`;
 
 function handleNetworkError(error) {
@@ -34,12 +34,38 @@ export async function getTiposEvento() {
   }
 }
 
-export async function getEventos() {
+export async function getEventos(params = {}) {
   try {
-    const res = await fetch(`${API_BASE}/events`);
+    const query = new URLSearchParams();
+    if (params.from) query.set("from", params.from);
+    if (params.to) query.set("to", params.to);
+    const qs = query.toString();
+    const url = qs ? `${API_BASE}/events?${qs}` : `${API_BASE}/events`;
+    const res = await fetch(url);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.message || "Error al obtener lista de eventos");
+    }
+    return res.json();
+  } catch (error) {
+    handleNetworkError(error);
+  }
+}
+
+export async function getEventosPublicos(params = {}) {
+  try {
+    const query = new URLSearchParams();
+    if (params.from) query.set("from", params.from);
+    if (params.to) query.set("to", params.to);
+    const qs = query.toString();
+    const url = qs ? `${API_BASE}/events/public?${qs}` : `${API_BASE}/events/public`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const error = new Error(body.message || "Error al consultar la agenda pública");
+      error.status = res.status;
+      error.unavailable = Boolean(body.unavailable || res.status === 503);
+      throw error;
     }
     return res.json();
   } catch (error) {
@@ -65,3 +91,23 @@ export async function createEvento(data) {
   }
   return body;
 }
+
+export async function updateEvento(id, data) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/events/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  } catch (error) {
+    handleNetworkError(error);
+  }
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body.message || body.error || "Error al actualizar el evento");
+  }
+  return body;
+}
+
