@@ -1,10 +1,11 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+
 import { equipmentRoutes } from "./routes/equipos.routes.js";
 import { vehicleRoutes } from "./routes/vehiculos.routes.js";
 import { clientRoutes } from "./routes/clientes.routes.js";
-import { eventosRoutes } from "./modules/eventos/eventos.routes.js";
+import { eventosRoutes } from "./routes/eventos.routes.js";
 import { quoteRoutes } from "./routes/cotizaciones.routes.js";
 import { paymentRoutes } from "./routes/pagos.routes.js";
 
