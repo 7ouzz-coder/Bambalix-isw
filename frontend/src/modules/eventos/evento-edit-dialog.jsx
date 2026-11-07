@@ -73,11 +73,15 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(eventoFormSchema),
     defaultValues: getFormValues(evento),
   });
+
+  const selectedClientId = watch("clientId");
+  const selectedEventTypeId = watch("eventTypeId");
 
   useEffect(() => {
     let isMounted = true;
@@ -99,11 +103,6 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
           setClientes(safeCList);
           setTipos(safeTList);
           setOptionsLoaded(true);
-          // Sincronizar únicamente los selectores con las opciones cargadas en el DOM,
-          // sin reiniciar el resto del formulario para no pisar ediciones del usuario (ej: título)
-          const targetValues = getFormValues(evento);
-          setValue("clientId", targetValues.clientId, { shouldValidate: true, shouldDirty: false });
-          setValue("eventTypeId", targetValues.eventTypeId, { shouldValidate: true, shouldDirty: false });
         })
         .catch(() => {
           if (!isMounted) return;
@@ -126,7 +125,21 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
     return () => {
       isMounted = false;
     };
-  }, [evento, open, reset, setValue]);
+  }, [evento, open, reset]);
+
+  // Sincronizar selectores de forma acotada una vez que las opciones estén disponibles en el DOM
+  useEffect(() => {
+    if (!open || !evento || !optionsLoaded) return;
+    const targetValues = getFormValues(evento);
+
+    // Solo sincronizar si el campo no tiene ya el valor correspondiente
+    if (selectedClientId !== targetValues.clientId) {
+      setValue("clientId", targetValues.clientId, { shouldValidate: true, shouldDirty: false });
+    }
+    if (selectedEventTypeId !== targetValues.eventTypeId) {
+      setValue("eventTypeId", targetValues.eventTypeId, { shouldValidate: true, shouldDirty: false });
+    }
+  }, [open, evento, optionsLoaded, selectedClientId, selectedEventTypeId, setValue]);
 
   async function onSubmit(data) {
     if (!evento?.id) return;
@@ -191,6 +204,7 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
               <select
                 id="edit-client"
                 disabled={loadingOptions}
+                value={selectedClientId ?? ""}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 {...register("clientId")}
                 aria-invalid={Boolean(errors.clientId)}
@@ -217,6 +231,7 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
               <select
                 id="edit-eventType"
                 disabled={loadingOptions}
+                value={selectedEventTypeId ?? ""}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 {...register("eventTypeId")}
                 aria-invalid={Boolean(errors.eventTypeId)}
