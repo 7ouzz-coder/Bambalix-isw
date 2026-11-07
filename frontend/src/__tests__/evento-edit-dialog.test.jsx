@@ -314,4 +314,63 @@ describe("Pruebas de interacción y precarga en EventoEditDialog", () => {
     expect(document.body.querySelector("#edit-client").value).toBe("cli_20");
     expect(document.body.querySelector("#edit-eventType").value).toBe("3");
   });
+
+  it("permite seleccionar y guardar asociaciones diferentes después de terminar la carga", async () => {
+    vi.spyOn(eventosService, "getClientes").mockResolvedValue(mockClientes);
+    vi.spyOn(eventosService, "getTiposEvento").mockResolvedValue(mockTipos);
+    const updateSpy = vi.spyOn(eventosService, "updateEvento").mockResolvedValue({
+      ...mockEvento1,
+      clientId: "cli_20",
+      eventTypeId: 3,
+    });
+
+    await act(async () => {
+      root.render(
+        <EventoEditDialog
+          evento={mockEvento1}
+          open={true}
+          onOpenChange={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      );
+    });
+
+    // Verificar precarga original
+    expect(document.body.querySelector("#edit-client").value).toBe("cli_10");
+    expect(document.body.querySelector("#edit-eventType").value).toBe("2");
+
+    // Seleccionar asociaciones diferentes después de terminar la carga
+    await act(async () => {
+      setInputValue(
+        document.body.querySelector("#edit-client"),
+        "cli_20",
+        "change"
+      );
+
+      setInputValue(
+        document.body.querySelector("#edit-eventType"),
+        "3",
+        "change"
+      );
+    });
+
+    expect(document.body.querySelector("#edit-client").value).toBe("cli_20");
+    expect(document.body.querySelector("#edit-eventType").value).toBe("3");
+
+    // Enviar el formulario y comprobar que updateEvento recibe ambos valores nuevos y las fechas originales
+    const form = document.body.querySelector("form");
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    });
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      mockEvento1.id,
+      expect.objectContaining({
+        clientId: "cli_20",
+        eventTypeId: 3,
+        startsAt: new Date(mockEvento1.startsAt).toISOString(),
+        endsAt: new Date(mockEvento1.endsAt).toISOString(),
+      })
+    );
+  });
 });
