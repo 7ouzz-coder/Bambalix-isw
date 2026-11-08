@@ -68,7 +68,7 @@ export function QuoteList({ revision, onStatusChanged }) {
   return (
     <section className={`equipment-ledger ${styles.ledger}`} aria-labelledby="quotes-list-heading" aria-busy={state.loading}>
       <p className="p-4 text-sm text-muted-foreground">
-        La aprobación requiere una sesión interna de gerente.
+        La aprobación de cotizaciones no está disponible.
       </p>
       <div className="ledger-header">
         <div>
@@ -164,7 +164,7 @@ export function QuoteList({ revision, onStatusChanged }) {
                         size="sm"
                         disabled
                         className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                        title="Requiere una sesión interna de gerente"
+                        title="Aprobación no disponible"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                         Aprobar

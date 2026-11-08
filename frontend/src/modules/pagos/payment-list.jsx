@@ -30,7 +30,7 @@ export function PaymentList({ revision }) {
   return (
     <section className={`equipment-ledger ${styles.ledger}`} aria-labelledby="payments-list-heading" aria-busy={state.loading}>
       <p className="p-4 text-sm text-muted-foreground">
-        La verificación de pagos requiere una sesión interna autorizada.
+        La verificación de pagos no está disponible.
       </p>
       <div className="ledger-header">
         <div>
@@ -149,7 +149,7 @@ export function PaymentList({ revision }) {
                         size="sm"
                         disabled
                         className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs px-2.5"
-                        title="Requiere una sesión interna autorizada"
+                        title="Verificación no disponible"
                       >
                         <CheckCircle className="w-3.5 h-3.5 mr-1" />
                         Verificar
