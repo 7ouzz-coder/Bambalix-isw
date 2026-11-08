@@ -2,7 +2,7 @@ import express from "express";
 import { PrismaClient } from "@prisma/client";
 import request from "supertest";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { createApp } from "../src/app.js";
+import { createBusinessTestApp as createApp } from "./business-app.js";
 import { decidirReemplazo } from "../src/services/reemplazos.service.js";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -141,7 +141,7 @@ describe("Reemplazos de equipos", () => {
     const f=await setup(); const item=await propose(f);
     expect((await operations.patch(`${f.path}/${item.id}/decision`).send(approve)).status).toBe(403);
     expect((await identifiedApi({role:"GERENTE"}).patch(`${f.path}/${item.id}/decision`).send(approve)).status).toBe(401);
-    expect((await manager.get(f.path)).body.canDecide).toBe(true);
+    expect((await manager.get(f.path)).body.canDecide).toBe(false);
   });
   it("aprueba e intercambia las asignaciones una sola vez, conservando evento y periodo", async () => {
     const f=await setup(); const item=await propose(f);

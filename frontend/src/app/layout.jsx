@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
-export const metadata = { title: "Bambalix · Equipos", description: "Registro de equipos para la producción de eventos" };
+export const metadata = { title: "Bambalix", description: "Producción de eventos y servicios para cada ocasión" };
 
 export default function RootLayout({ children }) {
   return <html lang="es" className={cn("font-sans", geist.variable)}><body>{children}</body></html>;

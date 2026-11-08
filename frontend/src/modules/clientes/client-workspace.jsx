@@ -34,7 +34,6 @@ export function ClientWorkspace() {
           <span>
             Recursos y operación <span className="crumb">/ Clientes</span>
           </span>
-          <span className="demo-label">Avance inicial · Local</span>
         </header>
         <section className="inventory-section" aria-labelledby="clients-heading">
           <p className="eyebrow">CONTACTOS / CLIENTES</p>

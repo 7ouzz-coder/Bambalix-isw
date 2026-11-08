@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
-import { createApp } from "../app.js";
+import { createBusinessTestApp as createApp } from "../../tests/business-app.js";
 import { updateEvento, coordinarReprogramacion } from "../services/eventos.service.js";
 
 describe("Módulo Eventos - Rutas y Servicios", () => {
