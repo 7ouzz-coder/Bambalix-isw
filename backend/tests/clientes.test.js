@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { createApp } from "../src/app.js";
+import { createBusinessTestApp as createApp } from "./business-app.js";
 
 const payloadPersona = {
   name: "María López",

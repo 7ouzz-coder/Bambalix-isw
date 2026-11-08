@@ -1,3 +1,4 @@
+vi.mock("../src/services/sesion.js", () => ({ sessionFetch: (...args) => fetch(...args) }));
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clientFormSchema,
