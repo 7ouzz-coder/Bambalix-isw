@@ -1,5 +1,5 @@
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-const API_BASE = rawApiUrl.endsWith("/api/v1") ? rawApiUrl : `${rawApiUrl.replace(/\/$/, "")}/api/v1`;
+import { apiBase as API_BASE } from "./api-url.js";
+import { sessionFetch } from "./sesion.js";
 
 function handleNetworkError(error) {
   if (error instanceof TypeError || error.name === "TimeoutError") {
@@ -10,7 +10,7 @@ function handleNetworkError(error) {
 
 export async function getClientes() {
   try {
-    const res = await fetch(`${API_BASE}/clients`);
+    const res = await sessionFetch(`${API_BASE}/clients`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.message || "Error al obtener lista de clientes");
@@ -23,7 +23,7 @@ export async function getClientes() {
 
 export async function getTiposEvento() {
   try {
-    const res = await fetch(`${API_BASE}/events/types`);
+    const res = await sessionFetch(`${API_BASE}/events/types`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.message || "Error al obtener tipos de evento");
@@ -41,7 +41,7 @@ export async function getEventos(params = {}) {
     if (params.to) query.set("to", params.to);
     const qs = query.toString();
     const url = qs ? `${API_BASE}/events?${qs}` : `${API_BASE}/events`;
-    const res = await fetch(url);
+    const res = await sessionFetch(url);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.message || "Error al obtener lista de eventos");
@@ -59,7 +59,7 @@ export async function getEventosPublicos(params = {}) {
     if (params.to) query.set("to", params.to);
     const qs = query.toString();
     const url = qs ? `${API_BASE}/events/public?${qs}` : `${API_BASE}/events/public`;
-    const res = await fetch(url);
+    const res = await sessionFetch(url);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       const error = new Error(body.message || "Error al consultar la agenda pública");
@@ -76,7 +76,7 @@ export async function getEventosPublicos(params = {}) {
 export async function createEvento(data) {
   let res;
   try {
-    res = await fetch(`${API_BASE}/events`, {
+    res = await sessionFetch(`${API_BASE}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -95,7 +95,7 @@ export async function createEvento(data) {
 export async function updateEvento(id, data) {
   let res;
   try {
-    res = await fetch(`${API_BASE}/events/${id}`, {
+    res = await sessionFetch(`${API_BASE}/events/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -110,4 +110,3 @@ export async function updateEvento(id, data) {
   }
   return body;
 }
-
