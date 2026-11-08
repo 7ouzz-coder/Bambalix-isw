@@ -1,15 +1,15 @@
+import { apiBase as API_BASE } from "./api-url.js";
+import { sessionFetch } from "./sesion.js";
 import { paymentFormSchema } from "../schemas/pagos.js";
 export { paymentFormSchema };
 
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-const API_BASE = rawApiUrl.endsWith("/api/v1") ? rawApiUrl : `${rawApiUrl.replace(/\/$/, "")}/api/v1`;
 
 export async function paymentRequest(path = "", options = {}) {
   const cleanPath = path ? (path.startsWith("/") ? path : `/${path}`) : "";
   const requestUrl = `${API_BASE}/payments${cleanPath}`;
 
   try {
-    const response = await fetch(requestUrl, {
+    const response = await sessionFetch(requestUrl, {
       ...options,
       headers: { "Content-Type": "application/json", ...options.headers },
       signal: options.signal || AbortSignal.timeout(10000),

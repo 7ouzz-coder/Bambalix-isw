@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { createApp } from "../src/app.js";
+import { createBusinessTestApp as createApp } from "./business-app.js";
 import { quoteService } from "../src/services/cotizaciones.service.js";
 
 afterEach(() => vi.restoreAllMocks());
@@ -342,7 +342,7 @@ describe("Requisito 2: Elaboración de cotizaciones", () => {
 
       expect(response.status).toBe(403);
       expect(response.body.message).toContain(
-        "no se permite la simulación de permisos mediante cabeceras",
+        "permanece bloqueada",
       );
       expect(db.quote.updateMany).not.toHaveBeenCalled();
     });
@@ -354,7 +354,7 @@ describe("Requisito 2: Elaboración de cotizaciones", () => {
         .send({});
 
       expect(response.status).toBe(403);
-      expect(response.body.message).toContain("Aprobación bloqueada");
+      expect(response.body.message).toContain("permanece bloqueada");
       expect(db.quote.updateMany).not.toHaveBeenCalled();
     });
   });

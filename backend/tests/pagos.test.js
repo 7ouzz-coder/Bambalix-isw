@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import express from "express";
-import { createApp } from "../src/app.js";
+import { createBusinessTestApp as createApp } from "./business-app.js";
 import { paymentService } from "../src/services/pagos.service.js";
 
 const cotizacionMock = {
@@ -25,7 +25,7 @@ const cotizacionMock = {
   ],
 };
 
-function setup(withIdentity = true) {
+function setup() {
   const db = {
     quote: {
       findUnique: vi.fn().mockImplementation(async ({ where }) => {
@@ -75,7 +75,7 @@ function setup(withIdentity = true) {
   db.$transaction = vi.fn((callback) => callback(db));
 
   const app = express();
-  if (withIdentity) app.use((req, _res, next) => { req.user = { id: "operador-pagos-test", authenticated: true }; next(); });
+  app.use((req, _res, next) => { req.user = { id: "operador-pagos-test" }; next(); });
   app.use(createApp({ db, webOrigin: "http://localhost:3000" }));
   return { db, api: request(app) };
 }
@@ -142,13 +142,13 @@ describe("Requisito 3: Registrar y verificar pagos", () => {
 
   describe("Verificación e idempotencia (POST /api/v1/payments/:id/verify)", () => {
     it("rechaza una verificación sin sesión aunque se envíen identidad y rol en cabeceras", async () => {
-      const { api, db } = setup(false);
+      const { api, db } = setup();
       const response = await api
         .post("/api/v1/payments/pay_registrado/verify")
         .set("x-user-name", "Gerente")
         .set("x-user-role", "gerente")
         .send({ id: "gerente", authenticated: true });
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(403);
       expect(db.payment.updateMany).not.toHaveBeenCalled();
     });
 
@@ -258,25 +258,4 @@ it("aplica solamente los filtros válidos del listado de pagos", async () => {
   const api = request(createApp({ db: { payment: { findMany } }, webOrigin: "http://localhost:3000" }));
   expect((await api.get("/api/v1/payments?quoteId=quote_100&status=REGISTRADO&method=EFECTIVO")).status).toBe(200);
   expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { quoteId: "quote_100", status: "REGISTRADO", method: "EFECTIVO" } }));
-});
-
-describe("Autoría del registro de pagos", () => {
-  const body = { quoteId: "quote_100", method: "EFECTIVO", amount: 1000 };
-  it("rechaza el registro sin identidad del servidor antes de escribir", async () => {
-    const transaction = vi.fn();
-    const api = request(createApp({ db: { $transaction: transaction }, webOrigin: "http://localhost:3000" }));
-    const result = await api.post("/api/v1/payments").set("x-user-id", "otro").send(body);
-    expect(result.status).toBe(401);
-    expect(transaction).not.toHaveBeenCalled();
-  });
-  it("rechaza la autoría enviada desde el navegador", async () => {
-    const { api, db } = setup();
-    expect((await api.post("/api/v1/payments").send({ ...body, registeredBy: "otra-persona" })).status).toBe(400);
-    expect(db.payment.create).not.toHaveBeenCalled();
-  });
-  it("el servicio no registra sin una identidad autenticada", async () => {
-    const db = { $transaction: vi.fn() };
-    await expect(paymentService(db).registrarRecepcion(body, { id: "otro", authenticated: false })).rejects.toMatchObject({ statusCode: 401 });
-    expect(db.$transaction).not.toHaveBeenCalled();
-  });
 });

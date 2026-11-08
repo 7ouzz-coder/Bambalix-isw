@@ -14,7 +14,7 @@ export function reemplazosController(db) {
     crear: action(data => solicitarReemplazo(db, data.equipmentId, data.assignmentId, data.replacementData, data.replacementActor), 201),
     listar: action(async data => ({
       ...await listarReemplazos(db, data.equipmentId, data.assignmentId, data.replacementPage),
-      canDecide: data.replacementActor?.role === "GERENTE",
+      canDecide: false,
     })),
     decidir: action(data => decidirReemplazo(db, data.equipmentId, data.assignmentId, data.replacementId, data.replacementDecision, data.replacementActor)),
   };

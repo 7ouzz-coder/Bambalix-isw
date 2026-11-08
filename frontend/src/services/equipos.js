@@ -1,8 +1,9 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import { sessionFetch } from "./sesion.js";
+import { apiBase as API_URL } from "./api-url.js";
 
 async function requestEquipment(path, options) {
   try {
-    const response = await fetch(`${API_URL}/api/v1/operations/resources${path}`, {
+    const response = await sessionFetch(`${API_URL}/operations/resources${path}`, {
       ...options,
       headers: { "Content-Type": "application/json", ...options.headers },
       signal: options.signal || AbortSignal.timeout(10000),

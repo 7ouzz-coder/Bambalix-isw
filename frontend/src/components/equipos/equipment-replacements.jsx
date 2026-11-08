@@ -50,7 +50,7 @@ export function EquipmentReplacements({ equipment, assignment, busy, onBack }) {
       : decision ? <ReplacementDecisionForm equipmentId={equipment.id} assignmentId={assignment.id} replacement={decision.replacement} status={decision.status} busy={busy} onSaved={saved} onCancel={() => setDecision(null)} />
       : !originalReleased && <Button type="button" disabled={state.loading || Boolean(state.error)} onClick={() => { setNotice(""); setCreating(true); }}>Solicitar reemplazo</Button>}
     {state.loading ? <p role="status">Consultando solicitudes…</p> : state.error ? <><p role="alert" className="error-message">{state.error}</p><Button variant="outline" disabled={editing} onClick={() => setAttempt(value => value + 1)}>Reintentar</Button></> : <>
-      {!state.canDecide && <p className="form-note">Aprobar o rechazar requiere una sesión de gerente validada por el servidor.</p>}
+      {!state.canDecide && <p className="form-note">Las decisiones de reemplazo no están disponibles.</p>}
       {!state.items.length ? <p>No hay solicitudes de reemplazo.</p> : <ol>{state.items.map(item => <li key={item.id}>
         <p><strong>{item.proposedResource ? `${item.proposedResource.code} · ${item.proposedResource.name}` : item.externalAlternative}</strong></p>
         <p>Estado: {labels[item.status] || "Desconocido"}</p>
