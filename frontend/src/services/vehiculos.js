@@ -1,8 +1,9 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import { sessionFetch } from "./sesion.js";
+import { apiBase as API_URL } from "./api-url.js";
 
 async function requestVehicles(query = "", options = {}) {
   try {
-    const response = await fetch(`${API_URL}/api/v1/operations/vehicles${query}`, {
+    const response = await sessionFetch(`${API_URL}/operations/vehicles${query}`, {
       ...options, headers: { "Content-Type": "application/json" },
       signal: options.signal || AbortSignal.timeout(10000), cache: "no-store",
     });
