@@ -39,3 +39,23 @@ it('identifica fechas ocupadas de prueba en rojo y con una etiqueta accesible',a
   expect(other.classList.contains('public-calendar-occupied')).toBe(false);
  } finally {await act(async()=>root.unmount());container.remove();}
 });
+
+it('hidrata sin errores aunque el servidor y el navegador cambien de mes',async()=>{
+ vi.useFakeTimers();
+ const { PublicCalendar }=await import('../src/components/publico/public-calendar.jsx');
+ const { renderToString }=await import('react-dom/server');
+ const { hydrateRoot }=await import('react-dom/client');
+ const props={selectedDate:'',onSelect:()=>{}};
+ vi.setSystemTime(new Date(2028,0,31,23,59));
+ const html=renderToString(<PublicCalendar {...props}/>);
+ expect(html).toContain('Cargando calendario');
+ vi.setSystemTime(new Date(2028,1,1,0,1));
+ const container=document.createElement('div');container.innerHTML=html;document.body.append(container);
+ const onRecoverableError=vi.fn();let root;
+ try {
+  await act(async()=>{root=hydrateRoot(container,<PublicCalendar {...props}/>,{onRecoverableError});});
+  expect(onRecoverableError).not.toHaveBeenCalled();
+  expect(container.querySelector('.public-calendar-header h3').textContent).toContain('febrero');
+  expect(container.querySelectorAll('.public-calendar-grid button')).toHaveLength(29);
+ } finally {if(root) await act(async()=>root.unmount());container.remove();}
+});
