@@ -261,6 +261,7 @@ model InternalSession {
 
 model PublicEventRequest {
   id String @id @default(cuid())
+  idempotencyKey String? @unique @map("idempotency_key")
   name String
   email String
   phone String?
