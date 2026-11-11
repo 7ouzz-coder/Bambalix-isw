@@ -20,3 +20,23 @@ it('no presenta una respuesta denegada como lista vacía',async()=>{
  sessionFetch.mockResolvedValue({ok:false,status:403});
  await expect(listRequests(1)).rejects.toThrow('No se pudieron consultar');
 });
+it('informa si se pierde la conexión al consultar las solicitudes',async()=>{
+ sessionFetch.mockRejectedValue(new TypeError('Failed to fetch'));
+ await expect(listRequests(1)).rejects.toThrow('No se pudieron consultar las solicitudes. Intenta nuevamente.');
+});
+it('conserva la cancelación al abandonar la consulta',async()=>{
+ const controller = new AbortController();
+ controller.abort();
+ sessionFetch.mockRejectedValue(controller.signal.reason);
+ await expect(listRequests(1, controller.signal)).rejects.toBe(controller.signal.reason);
+});
+it('informa si se agota el tiempo de espera',async()=>{
+ const controller = new AbortController();
+ controller.abort(new DOMException('Timeout', 'TimeoutError'));
+ sessionFetch.mockRejectedValue(controller.signal.reason);
+ await expect(listRequests(1, controller.signal)).rejects.toThrow('No se pudieron consultar las solicitudes. Intenta nuevamente.');
+});
+it('informa si la respuesta del servidor no se puede leer',async()=>{
+ sessionFetch.mockResolvedValue({ok:true,json:async()=>{throw new SyntaxError('Unexpected token');}});
+ await expect(listRequests(1)).rejects.toThrow('No se pudieron consultar las solicitudes. Intenta nuevamente.');
+});
