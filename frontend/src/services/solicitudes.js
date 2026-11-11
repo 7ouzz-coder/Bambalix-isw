@@ -6,9 +6,17 @@ const listSchema = z.object({
   total: z.number().int().nonnegative(), pages: z.number().int().positive(), page: z.number().int().positive(),
 }).refine(data => data.page <= data.pages);
 export async function listRequests(page, signal) {
-  const response = await sessionFetch(`${base}/requests?page=${page}`, { signal, cache: "no-store" });
+  let response;
+  try { response = await sessionFetch(`${base}/requests?page=${page}`, { signal, cache: "no-store" }); }
+  catch (error) {
+    if (signal?.aborted && signal.reason?.name === "AbortError") throw error;
+    throw new Error("No se pudieron consultar las solicitudes. Intenta nuevamente.");
+  }
   if (!response.ok) throw new Error("No se pudieron consultar las solicitudes. Intenta nuevamente.");
-  const parsed = listSchema.safeParse(await response.json());
+  let data;
+  try { data = await response.json(); }
+  catch { throw new Error("No se pudieron consultar las solicitudes. Intenta nuevamente."); }
+  const parsed = listSchema.safeParse(data);
   if (!parsed.success) throw new Error("El servidor devolvió un listado de solicitudes inválido.");
   return parsed.data;
 }
