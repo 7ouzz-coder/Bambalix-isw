@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
-it.each(['http://127.0.0.1:55506','http://127.0.0.1:55506/','http://127.0.0.1:55506/api/v1','http://127.0.0.1:55506/api/v1/'])('construye las rutas de todos los módulos con %s', async configured => {
+it.each(['http://127.0.0.1:55506','http://127.0.0.1:55506/','http://127.0.0.1:55506/api','http://127.0.0.1:55506/api/','http://127.0.0.1:55506/api/v1','http://127.0.0.1:55506/api/v1/'])('construye las rutas de todos los módulos con %s', async configured => {
  vi.stubEnv('NEXT_PUBLIC_API_URL', configured); vi.resetModules();
  const fetch = vi.fn().mockImplementation(async url => ({ok:true,status:200,json:async()=>String(url).includes('/requests?') ? {items:[],total:0,pages:1,page:1} : []}));
  vi.stubGlobal('fetch', fetch);

@@ -7,23 +7,33 @@ const sessionResponse = z.object({
 const root = `${apiBase}/auth`;
 let csrfToken = null;
 export async function currentSession() {
-  const response = await fetch(`${root}/me`, { credentials: "include", cache: "no-store" });
+  let response;
+  try { response = await fetch(`${root}/me`, { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(10000) }); }
+  catch { throw new Error("No se pudo conectar con el servidor. Intenta nuevamente"); }
   if (response.status === 401) { csrfToken = null; return null; }
   if (!response.ok) throw new Error("No se pudo consultar la sesión. Intenta nuevamente");
-  const parsed = sessionResponse.safeParse(await response.json());
+  let data;
+  try { data = await response.json(); }
+  catch { throw new Error("No se pudo consultar la sesión. Intenta nuevamente"); }
+  const parsed = sessionResponse.safeParse(data);
   if (!parsed.success) throw new Error("El servidor devolvió una sesión inválida");
   csrfToken = parsed.data.csrfToken; return parsed.data.user;
 }
 export async function startSession(email, password) {
-  const response = await fetch(`${root}/login`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "No se pudo iniciar sesión");
+  let response, data;
+  try { response = await fetch(`${root}/login`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) }); }
+  catch { throw new Error("No se pudo conectar con el servidor. Intenta nuevamente"); }
+  try { data = await response.json(); }
+  catch { throw new Error("No se pudo iniciar sesión. Intenta nuevamente"); }
+  if (!response.ok) throw new Error(data?.message || "No se pudo iniciar sesión");
   const parsed = sessionResponse.safeParse(data);
   if (!parsed.success) throw new Error("El servidor devolvió una sesión inválida");
   csrfToken = parsed.data.csrfToken; return parsed.data.user;
 }
 export async function endSession() {
-  const response = await sessionFetch(`${root}/logout`, { method: "POST" });
+  let response;
+  try { response = await sessionFetch(`${root}/logout`, { method: "POST" }); }
+  catch { throw new Error("No se pudo cerrar la sesión. Intenta nuevamente"); }
   if (!response.ok) throw new Error("No se pudo cerrar la sesión. Intenta nuevamente");
   csrfToken = null;
 }
