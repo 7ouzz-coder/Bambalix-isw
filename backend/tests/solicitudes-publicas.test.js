@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { publicRequestLimit } from "../src/middlewares/solicitudes-publicas.validation.js";
-const data = { name: "Cliente solicitud", email: "solicitud-0511@example.test", requestedDate: "2028-07-10", service: "Seminarios y congresos", message: "Necesitamos sonido para cuarenta asistentes." };
+const data = { name: "Cliente solicitud", email: "solicitud-0511@example.test", requestedDate: "2028-07-10", service: "Sonido para cuarenta asistentes", phone: "+56912345678" };
 it("registra sin sesión una solicitud y no crea cliente ni evento", async () => {
  const url = process.env.TEST_DATABASE_URL;
  if (!url || new URL(url).hostname !== "127.0.0.1" || !new URL(url).pathname.endsWith("_test")) throw new Error("Base de pruebas requerida");
@@ -20,7 +20,7 @@ it("registra sin sesión una solicitud y no crea cliente ni evento", async () =>
   expect(await db.event.count({where:{client:{email:data.email}}})).toBe(0);
  } finally { await db.publicEventRequest.deleteMany({ where: { email: data.email } }); await db.$disconnect(); }
 });
-it.each([{requestedDate:"2028-02-30"},{email:"incorrecto"},{role:"GERENTE"},{message:"corto"}])("rechaza datos inválidos sin escribir: %j", async invalid => {
+it.each([{requestedDate:"2028-02-30"},{email:"incorrecto"},{role:"GERENTE"},{phone:undefined},{phone:"  "},{service:"  "},{message:"Campo retirado"}])("rechaza datos inválidos sin escribir: %j", async invalid => {
  const create = vi.fn(); const api = request(createApp({ db: { publicEventRequest: { create } }, webOrigin: "http://localhost:3000" }));
  expect((await api.post("/api/v1/public/requests").send({...data,...invalid})).status).toBe(400);
  expect(create).not.toHaveBeenCalled();
@@ -64,7 +64,7 @@ it('evita duplicados en reintentos y peticiones simultáneas con la misma clave'
   expect(results[0].body).toEqual(results[1].body);
   expect(await db.publicEventRequest.count({where:{email:input.email}})).toBe(1);
   expect((await send(input)).status).toBe(201);
-  expect((await send({...input,message:'Una solicitud diferente del cliente.'})).status).toBe(409);
+  expect((await send({...input,service:'Otro servicio solicitado'})).status).toBe(409);
   expect(await db.publicEventRequest.count({where:{email:input.email}})).toBe(1);
   expect((await api.post('/api/v1/public/requests').set('Idempotency-Key','no-valida').send(input)).status).toBe(400);
  } finally {await db.publicEventRequest.deleteMany({where:{email:input.email}});await db.$disconnect();}
@@ -75,7 +75,6 @@ it.each([
  {phone:'123456789'},
  {requestedDate:'2028-07-11'},
  {service:'Shows y conciertos'},
- {message:'Una descripción diferente para la solicitud.'},
 ])('rechaza la misma clave cuando cambia un dato: %j', async change => {
  const {randomUUID}=await import('node:crypto');
  const url=process.env.TEST_DATABASE_URL;
@@ -84,18 +83,18 @@ it.each([
  const key=randomUUID(), input={...data,email:`${randomUUID()}@example.test`};
  try {
   expect((await api.post('/api/v1/public/requests').set('Idempotency-Key',key).send(input)).status).toBe(201);
-  expect((await api.post('/api/v1/public/requests').set('Idempotency-Key',key).send({...input,phone:'',...change})).status).toBe(409);
+  expect((await api.post('/api/v1/public/requests').set('Idempotency-Key',key).send({...input,...change})).status).toBe(409);
   expect(await db.publicEventRequest.count({where:{idempotencyKey:key}})).toBe(1);
  } finally {await db.publicEventRequest.deleteMany({where:{idempotencyKey:key}});await db.$disconnect();}
 });
-it('acepta el reintento si el teléfono opcional se omitió o se envió vacío', async () => {
+it('acepta el reintento si el teléfono solo cambia en espacios', async () => {
  const {randomUUID}=await import('node:crypto');const url=process.env.TEST_DATABASE_URL;
  if (!url || new URL(url).hostname!=='127.0.0.1' || !new URL(url).pathname.endsWith('_test')) throw new Error('Base local de pruebas requerida');
  const db=new PrismaClient({datasources:{db:{url}}});const api=request(createApp({db,webOrigin:'http://localhost:3000'}));
  const key=randomUUID(), input={...data,email:`${randomUUID()}@example.test`};
  try {
   expect((await api.post('/api/v1/public/requests').set('Idempotency-Key',key).send(input)).status).toBe(201);
-  expect((await api.post('/api/v1/public/requests').set('Idempotency-Key',key).send({...input,phone:''})).status).toBe(201);
+  expect((await api.post('/api/v1/public/requests').set('Idempotency-Key',key).send({...input,phone:' '+input.phone+' '})).status).toBe(201);
   expect(await db.publicEventRequest.count({where:{idempotencyKey:key}})).toBe(1);
  } finally {await db.publicEventRequest.deleteMany({where:{idempotencyKey:key}});await db.$disconnect();}
 });
