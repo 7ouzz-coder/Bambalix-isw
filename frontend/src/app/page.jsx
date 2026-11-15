@@ -1,79 +1,18 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { Layers3 } from "lucide-react";
-import { EquipmentForm } from "@/modules/equipos/equipment-form";
-import { EquipmentList } from "@/modules/equipos/equipment-list";
-import { EventoWorkspace } from "@/modules/eventos/evento-workspace";
-import { WorkspaceNavigation } from "@/components/workspace-navigation";
-
-export default function Home() {
-  const [activeTab, setActiveTab] = useState("equipos");
-  const [equiposNotice, setEquiposNotice] = useState("");
-  const [equiposRevision, setEquiposRevision] = useState(0);
-
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("module") === "eventos") {
-      setActiveTab("eventos");
-    }
-  }, []);
-
-  return (
-    <div className="workspace">
-      <aside className="sidebar">
-        <a href="/" className="brand" aria-label="Bambalix, inicio">
-          <Layers3 aria-hidden="true" />
-          Bambalix<span>®</span>
-        </a>
-        <p className="nav-label">ESPACIO DE TRABAJO</p>
-        <WorkspaceNavigation activeModule={activeTab} />
-        <div className="sidebar-foot">
-          <span className="small-line" />
-          <p>
-            Detrás de cada evento,
-            <br />
-            todo en su lugar.
-          </p>
-          <small>Bambalix</small>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        <header className="topbar">
-          <span>
-            {activeTab === "equipos" ? "Recursos y operación / Equipos" : "Eventos y agenda / Registrar eventos"}
-          </span>
-        </header>
-
-        {activeTab === "equipos" ? (
-          <section className="inventory-section" aria-labelledby="equipment-heading">
-            <p className="eyebrow">INVENTARIO / EQUIPOS INDIVIDUALES</p>
-            <div className="page-heading">
-              <div>
-                <h1 id="equipment-heading">
-                  Todo empieza
-                  <br className="desktop-break" /> por el equipo.
-                </h1>
-                <p>Registra y consulta tus equipos en un solo lugar.</p>
-              </div>
-              <EquipmentForm
-                onSaved={(equipment) => {
-                  setEquiposNotice(`Equipo «${equipment.name}» registrado correctamente.`);
-                  setEquiposRevision((prev) => prev + 1);
-                }}
-              />
-            </div>
-            {equiposNotice ? <p className="success-message" role="status">{equiposNotice}</p> : null}
-            <EquipmentList revision={equiposRevision} />
-          </section>
-        ) : (
-          <EventoWorkspace />
-        )}
-
-        <footer className="page-footer">
-          <span>BAMBALIX</span>
-        </footer>
-      </main>
-    </div>
-  );
+import { Layers3, ArrowUpRight } from "lucide-react";
+import { PublicContact } from "@/components/publico/event-request";
+import "./publico.css";
+const services = [
+ ["01", "Encuentros que conectan", "Seminarios y congresos con apoyo técnico y logístico."],
+ ["02", "Momentos que se celebran", "Licenciaturas, ceremonias y celebraciones sociales."],
+ ["03", "Escenarios que se sienten", "Shows, conciertos y producción técnica para cada espectáculo."],
+ ["04", "El apoyo que necesitas", "Banquetería, arriendo de escenarios y mobiliario, y asesoría de producción."],
+];
+export default function PublicHome() {
+ return <div className="public-home">
+  <header className="public-header"><a href="/" className="public-brand" aria-label="Bambalix, inicio"><Layers3 aria-hidden="true"/>Bambalix</a><nav aria-label="Navegación pública"><a href="#servicios">Servicios</a><a href="#agenda">Agenda</a><a className="public-staff" href="/colaboradores">Acceso colaboradores <ArrowUpRight size={16} aria-hidden="true"/></a></nav></header>
+  <main><section className="public-hero"><div><p className="public-eyebrow">PRODUCCIÓN · TÉCNICA · COORDINACIÓN</p><h1>Tu evento,<br/>en buenas manos.</h1><p className="public-lead">De la primera idea al último aplauso. Coordinamos los servicios que tu evento necesita, a tu medida.</p><a className="public-cta" href="#solicitar">Conversemos sobre tu evento <ArrowUpRight size={20} aria-hidden="true"/></a></div><div className="public-stage" aria-hidden="true"><span className="public-stage-number">B.</span><span className="public-stage-line"/><span className="public-stage-caption">DETRÁS DE CADA EVENTO,<br/>TODO EN SU LUGAR.</span></div></section>
+  <section id="servicios" className="public-services" aria-labelledby="services-heading"><div className="public-section-intro"><p className="public-eyebrow">LO QUE HACEMOS</p><h2 id="services-heading">Cada ocasión tiene<br/>su propia forma.</h2><p>Eventos corporativos, sociales y artísticos. Combinamos los servicios según lo que necesitas, sin limitar tu idea a un paquete fijo.</p></div><div>{services.map(([number,title,description])=><article key={number} className="public-service"><span>{number}</span><div><h3>{title}</h3><p>{description}</p></div></article>)}</div></section>
+  <PublicContact/></main>
+  <footer className="public-footer"><span>Bambalix</span><p>Producción que acompaña tus ideas.</p><a href="/colaboradores">Acceso colaboradores</a></footer>
+ </div>;
 }

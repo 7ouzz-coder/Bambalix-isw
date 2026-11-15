@@ -8,25 +8,145 @@ datasource db {
 }
 
 model Resource {
-  id        String   @id @default(cuid())
-  name      String
-  category  String
-  code      String?  @unique
-  mode      String   @default("UNIT")
-  quantity  Int      @default(1)
-  createdAt DateTime @default(now())
+  id            String                  @id @default(cuid())
+  name          String
+  category      String
+  code          String?                 @unique
+  mode          String                  @default("UNIT")
+  quantity      Int                     @default(1)
+  createdAt     DateTime                @default(now())
+  status        EquipmentStatus         @default(UNREVIEWED)
+  revision      Int                     @default(0)
+  statusChanges EquipmentStatusChange[]
+  maintenances  EquipmentMaintenance[]
+  assignments   EquipmentAssignment[]
+  replacementProposals EquipmentReplacement[] @relation("ReplacementEquipment")
+
   @@index([category, name])
 }
 
-model Client {
-  id        String   @id @default(cuid())
-  name      String
-  email     String
-  rut       String?  @unique
-  phone     String?
-  address   String?
-  events    Event[]
+enum EquipmentStatus {
+  UNREVIEWED
+  OPERATIONAL
+  MAINTENANCE
+  DAMAGED
+}
+
+model EquipmentMaintenance {
+  id         String   @id @default(cuid())
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  startsAt   DateTime @db.Timestamptz(3)
+  endsAt     DateTime @db.Timestamptz(3)
+  reason     String
+  createdAt  DateTime @default(now())
+  closedAt   DateTime? @db.Timestamptz(3)
+  closingNotes String?
+  notes      EquipmentMaintenanceNote[]
+
+  @@index([resourceId, startsAt, id])
+}
+
+model EquipmentMaintenanceNote {
+  id            String @id @default(cuid())
+  maintenanceId String
+  maintenance   EquipmentMaintenance @relation(fields: [maintenanceId], references: [id], onDelete: Restrict)
+  content       String
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([maintenanceId, createdAt, id])
+}
+
+model EquipmentAssignment {
+  id            String    @id @default(cuid())
+  resourceId    String
+  resource      Resource  @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  eventId       Int
+  event         Event     @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  startsAt      DateTime  @db.Timestamptz(3)
+  endsAt        DateTime  @db.Timestamptz(3)
+  createdAt     DateTime  @default(now())
+  releasedAt    DateTime?
+  releaseReason String?
+  replacementRequests EquipmentReplacement[] @relation("OriginalAssignment")
+  replacementOrigin EquipmentReplacement? @relation("ResultingAssignment")
+
+  @@index([resourceId, releasedAt, startsAt])
+  @@index([eventId])
+}
+
+enum EquipmentReplacementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model EquipmentReplacement {
+  id                   String @id @default(cuid())
+  assignmentId         String
+  assignment           EquipmentAssignment @relation("OriginalAssignment", fields: [assignmentId], references: [id], onDelete: Restrict)
+  resultingAssignmentId String? @unique
+  resultingAssignment EquipmentAssignment? @relation("ResultingAssignment", fields: [resultingAssignmentId], references: [id], onDelete: Restrict)
+  proposedResourceId   String?
+  proposedResource     Resource? @relation("ReplacementEquipment", fields: [proposedResourceId], references: [id], onDelete: Restrict)
+  externalAlternative  String?
+  reason               String
+  estimatedCost        Decimal? @db.Decimal(12, 2)
+  startsAt             DateTime @db.Timestamptz(3)
+  endsAt               DateTime @db.Timestamptz(3)
+  eventStartsAt        DateTime @db.Timestamptz(3)
+  eventEndsAt          DateTime @db.Timestamptz(3)
+  status               EquipmentReplacementStatus @default(PENDING)
+  requestedById        String?
+  createdAt            DateTime @default(now()) @db.Timestamptz(3)
+  decidedAt            DateTime? @db.Timestamptz(3)
+  decidedById          String?
+  decisionReason       String?
+
+  @@index([assignmentId, createdAt, id])
+  @@index([proposedResourceId])
+}
+
+model EquipmentStatusChange {
+  id             String          @id @default(cuid())
+  resourceId     String
+  resource       Resource        @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  previousStatus EquipmentStatus
+  status         EquipmentStatus
+  reason         String
+  revision       Int
+  createdAt      DateTime        @default(now())
+
+  @@unique([resourceId, revision])
+  @@index([resourceId, createdAt])
+}
+
+model Vehicle {
+  id String @id @default(cuid())
+  name String
+  type String
+  plate String @unique
+  revision Int @default(0)
   createdAt DateTime @default(now())
+
+  @@index([name])
+}
+
+model Client {
+  id              String   @id @default(cuid())
+  name            String
+  email           String
+  rut             String?  @unique
+  phone           String?
+  address         String?
+  clientType      String   @default("persona")
+  contactName     String?
+  contactPhone    String?
+  contactEmail    String?
+  contactPosition String?
+  events          Event[]
+  quotes          Quote[]
+  createdAt       DateTime @default(now())
 
   @@index([name])
 }
@@ -40,6 +160,7 @@ model EventType {
 }
 
 model Event {
+  equipmentAssignments EquipmentAssignment[]
   id          Int       @id @default(autoincrement())
   title       String
   clientId    String    @map("client_id")
@@ -51,7 +172,102 @@ model Event {
   attendees   Int
   location    String?
   needs       String?
+  quotes      Quote[]
   createdAt   DateTime  @default(now()) @map("created_at")
 
   @@map("events")
+}
+
+model Quote {
+  id         String      @id @default(cuid())
+  code       String      @unique
+  clientId   String      @map("client_id")
+  client     Client      @relation(fields: [clientId], references: [id])
+  eventId    Int         @map("event_id")
+  event      Event       @relation(fields: [eventId], references: [id])
+  status     String      @default("BORRADOR")
+  total      Decimal     @db.Decimal(12, 2)
+  notes      String?
+  approvedAt DateTime?   @map("approved_at")
+  approvedBy String?     @map("approved_by")
+  items      QuoteItem[]
+  payments   Payment[]
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@index([eventId])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id        String   @id @default(cuid())
+  quoteId   String   @map("quote_id")
+  quote     Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  concept   String
+  quantity  Int
+  unitPrice Decimal  @map("unit_price") @db.Decimal(12, 2)
+  subtotal  Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([quoteId])
+  @@map("quote_items")
+}
+
+model Payment {
+  id           String    @id @default(cuid())
+  quoteId      String    @map("quote_id")
+  quote        Quote     @relation(fields: [quoteId], references: [id])
+  method       String    // EFECTIVO | TRANSFERENCIA
+  amount       Decimal   @db.Decimal(12, 2)
+  reference    String?
+  status       String    @default("REGISTRADO") // REGISTRADO | VERIFICADO | ANULADO
+  registeredBy String?   @map("registered_by")
+  verifiedBy   String?   @map("verified_by")
+  verifiedAt   DateTime? @map("verified_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([quoteId])
+  @@map("payments")
+}
+
+model InternalUser {
+  id           String @id @default(cuid())
+  email        String @unique
+  name         String
+  passwordHash String @map("password_hash")
+  role         String
+  permissions  String[] @default([])
+  active       Boolean @default(true)
+  sessions     InternalSession[]
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("internal_users")
+}
+
+model InternalSession {
+  id        String @id @default(cuid())
+  tokenHash String @unique @map("token_hash")
+  csrfToken String @map("csrf_token")
+  userId    String @map("user_id")
+  user      InternalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("internal_sessions")
+}
+
+model PublicEventRequest {
+  id String @id @default(cuid())
+  idempotencyKey String? @unique @map("idempotency_key")
+  name String
+  email String
+  phone String?
+  requestedDate String @map("requested_date")
+  service String
+  message String
+  createdAt DateTime @default(now()) @map("created_at")
+  @@map("public_event_requests")
 }

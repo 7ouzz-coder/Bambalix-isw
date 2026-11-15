@@ -1,0 +1,9 @@
+.ledger.ledger [data-slot="table"] {
+  min-width: 1000px;
+  table-layout: auto;
+}
+
+.ledger.ledger td {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
