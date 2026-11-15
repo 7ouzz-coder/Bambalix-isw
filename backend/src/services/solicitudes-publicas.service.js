@@ -1,16 +1,16 @@
 export async function registerPublicRequest(db, data, idempotencyKey) {
  try {
-  await db.publicEventRequest.create({ data: { ...data, ...(idempotencyKey ? { idempotencyKey } : {}) } });
+  await db.publicEventRequest.create({ data: { ...data, message: "", ...(idempotencyKey ? { idempotencyKey } : {}) } });
  } catch (error) {
   if (!idempotencyKey || error.code !== "P2002") throw error;
   const existing = await db.publicEventRequest.findUnique({
    where: { idempotencyKey },
-   select: { name: true, email: true, phone: true, requestedDate: true, service: true, message: true },
+   select: { name: true, email: true, phone: true, requestedDate: true, service: true },
   });
   if (!existing) throw error;
   const sameRequest = existing.name === data.name && existing.email === data.email &&
-   (existing.phone || "") === (data.phone || "") && existing.requestedDate === data.requestedDate &&
-   existing.service === data.service && existing.message === data.message;
+   existing.phone === data.phone && existing.requestedDate === data.requestedDate &&
+   existing.service === data.service;
   if (!sameRequest) {
    const conflict = new Error("La solicitud cambió. Actualiza la página antes de volver a enviarla.");
    conflict.statusCode = 409;

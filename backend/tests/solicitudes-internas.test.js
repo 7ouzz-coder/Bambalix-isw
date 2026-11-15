@@ -34,14 +34,14 @@ describe("Bandeja interna", () => {
     expect((await request(app).get('/api/v1/requests').set('Cookie',cookie)).status).toBe(403);
   });
   it("consulta lo enviado desde la landing con sesión y permiso exclusivos de la prueba", async () => {
-    const input={name:'Consulta bandeja',email:`${randomUUID()}@example.test`,phone:'',requestedDate:'2028-09-12',service:'Seminarios y congresos',message:'Necesitamos apoyo técnico para el seminario.'};
+    const input={name:'Consulta bandeja',email:`${randomUUID()}@example.test`,phone:'+56912345678',requestedDate:'2028-09-12',service:'Seminarios y congresos'};
     expect((await request(app).post('/api/v1/public/requests').send(input)).status).toBe(201);
     record=await db.publicEventRequest.findFirstOrThrow({where:{email:input.email}});
     await db.internalUser.update({where:{id:account.id},data:{permissions:['solicitudes:leer']}});
     const response=await request(app).get('/api/v1/requests').set('Cookie',cookie);
     expect(response.status).toBe(200);
     expect(response.headers['cache-control']).toBe('no-store');
-    expect(response.body.items.find(item=>item.id===record.id)).toMatchObject({name:input.name,email:input.email,requestedDate:input.requestedDate,message:input.message});
+    expect(response.body.items.find(item=>item.id===record.id)).toMatchObject({name:input.name,email:input.email,requestedDate:input.requestedDate,message:''});
     expect((await request(app).post('/api/v1/requests').set('Cookie',cookie).send({})).status).toBe(403);
     for (const query of ['page=0','page=-1','page=1.5','page=10001','page=abc','page=1&role=GERENTE'])
       expect((await request(app).get('/api/v1/requests?'+query).set('Cookie',cookie)).status).toBe(400);
