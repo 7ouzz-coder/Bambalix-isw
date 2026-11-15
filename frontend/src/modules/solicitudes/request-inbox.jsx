@@ -31,7 +31,7 @@ export function RequestInbox() {
         <dl><dt>Correo</dt><dd>{item.email}</dd><dt>Teléfono</dt><dd>{item.phone || "No informado"}</dd>
           <dt>Fecha solicitada</dt><dd><time dateTime={item.requestedDate}>{item.requestedDate.split("-").reverse().join("/")}</time></dd>
           <dt>Recibida</dt><dd><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString("es-CL")}</time></dd>
-          <dt>Descripción</dt><dd style={{ whiteSpace: "pre-wrap" }}>{item.message}</dd></dl>
+          {item.message && <><dt>Descripción</dt><dd style={{ whiteSpace: "pre-wrap" }}>{item.message}</dd></>}</dl>
       </article>)}
       {state.pages > 1 && <nav aria-label="Páginas de solicitudes" style={{ display: "flex", gap: 16, alignItems: "center", marginTop: 20 }}>
         <Button variant="outline" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>Anterior</Button><span>Página {page} de {state.pages}</span>
