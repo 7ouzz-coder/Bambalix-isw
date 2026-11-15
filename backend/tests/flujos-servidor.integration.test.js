@@ -39,7 +39,7 @@ describe.skipIf(!enabled)('Flujos HTTP integrados',()=>{
    const savedPayment=await db.payment.findUniqueOrThrow({where:{id:payment.id}}); expect(savedPayment.registeredBy).toBe(user.id);expect(savedPayment.status).toBe('REGISTRADO');
    await call('POST',`/payments/${payment.id}/verify`,{},403);
    await call('PATCH','/operations/resources/x/assignments/y/replacements/z/decision',{},403);
-   await call('POST','/public/requests',{name:'Persona prueba',email:`${suffix}@example.test`,requestedDate:'2029-06-05',service:'Seminarios y congresos',message:'Solicitud ficticia para verificar el flujo.'},201);
+   await call('POST','/public/requests',{name:'Persona prueba',email:`${suffix}@example.test`,requestedDate:'2029-06-05',service:'Seminarios y congresos',phone:'+56912345678'},201);
    publicRequest=await db.publicEventRequest.findFirstOrThrow({where:{email:`${suffix}@example.test`}});
    const inbox=await call('GET','/requests?page=1',undefined,200); expect(inbox.items.some(x=>x.id===publicRequest.id)).toBe(true);
   } finally {
