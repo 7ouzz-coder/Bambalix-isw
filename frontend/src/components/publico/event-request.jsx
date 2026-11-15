@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from "react";
 import { publicAgenda, sendPublicRequest } from "@/services/publico";
 import { PublicCalendar } from "./public-calendar";
-const services = ["Seminarios y congresos", "Ceremonias académicas", "Shows y conciertos", "Banquetería y celebraciones", "Arriendo de equipamiento", "Asesoría de producción"];
 function requestKey() {
  if (!globalThis.crypto?.getRandomValues) throw new Error("No pudimos preparar tu solicitud. Intenta desde un navegador actualizado.");
  if (globalThis.crypto.randomUUID) return globalThis.crypto.randomUUID();
@@ -29,10 +28,11 @@ export function PublicContact() {
   event.preventDefault(); if (sending.current) return;
   const form = event.currentTarget; const data = Object.fromEntries(new FormData(form));
   data.name = data.name.trim(); data.email = data.email.trim().toLowerCase();
-  data.phone = data.phone.trim(); data.message = data.message.trim();
+  data.phone = data.phone.trim(); data.service = data.service.trim();
   setError(""); setNotice("");
   if (data.name.trim().length < 2) { setError("Ingresa un nombre de al menos 2 caracteres."); form.elements.name.focus(); return; }
-  if (data.message.trim().length < 10) { setError("Describe tu solicitud con al menos 10 caracteres."); form.elements.message.focus(); return; }
+  if (!data.phone) { setError("Ingresa tu teléfono."); form.elements.phone.focus(); return; }
+  if (!data.service) { setError("Ingresa el servicio que necesitas."); form.elements.service.focus(); return; }
   sending.current = true; setBusy(true);
   try {
    const payload = JSON.stringify(data);
@@ -54,10 +54,9 @@ export function PublicContact() {
    <form onSubmit={submit} className="public-request-form">
     <label>Nombre<input name="name" autoComplete="name" minLength={2} maxLength={120} required disabled={busy}/></label>
     <label>Correo electrónico<input name="email" type="email" autoComplete="email" maxLength={254} required disabled={busy}/></label>
-    <label>Teléfono (opcional)<input name="phone" type="tel" autoComplete="tel" maxLength={40} disabled={busy}/></label>
+    <label>Teléfono<input name="phone" type="tel" autoComplete="tel" maxLength={40} required disabled={busy}/></label>
     <label>Fecha que te interesa<input name="requestedDate" type="date" required disabled={busy} value={requestedDate} onChange={event => setRequestedDate(event.target.value)}/></label>
-    <label className="public-wide">Servicio<select name="service" required disabled={busy}><option value="">Selecciona un servicio</option>{services.map(service => <option key={service}>{service}</option>)}</select></label>
-    <label className="public-wide">¿Qué tienes en mente?<textarea name="message" minLength={10} maxLength={2000} rows={4} required disabled={busy}/></label>
+    <label className="public-wide">Servicio<input name="service" type="text" placeholder="Ej. Sonido e iluminación para una ceremonia" maxLength={240} required disabled={busy}/></label>
     <p className="public-wide public-form-note">La solicitud está sujeta a revisión de disponibilidad y cotización. No confirma una reserva.</p>
     {error && <p className="public-wide" role="alert">{error}</p>}{notice && <p className="public-wide" role="status">{notice}</p>}
     <button className="public-cta" type="submit" disabled={busy}>{busy ? "Enviando…" : "Enviar solicitud"}<span aria-hidden="true">↗</span></button>
