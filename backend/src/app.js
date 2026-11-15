@@ -1,15 +1,22 @@
+import { internalRequestRoutes } from "./routes/solicitudes-internas.routes.js";
+import { publicRequestRoutes } from "./routes/solicitudes-publicas.routes.js";
+import { sessionRoutes } from "./routes/sesiones.routes.js";
+import { loadSession, requireSession, requireCsrf, requireArea, blockDecision } from "./middlewares/sesiones.validation.js";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import { equipmentRoutes } from "./modules/equipos/equipos.routes.js";
-import { clientRoutes } from "./modules/clientes/clientes.routes.js";
-import { eventosRoutes } from "./modules/eventos/eventos.routes.js";
+import { equipmentRoutes } from "./routes/equipos.routes.js";
+import { vehicleRoutes } from "./routes/vehiculos.routes.js";
+import { clientRoutes } from "./routes/clientes.routes.js";
+import { eventosRoutes } from "./routes/eventos.routes.js";
+import { quoteRoutes } from "./routes/cotizaciones.routes.js";
+import { paymentRoutes } from "./routes/pagos.routes.js";
 
-export function createApp({ db, webOrigin }) {
+export function createApp({ db, webOrigin, sessionMiddleware = loadSession(db), csrfMiddleware = requireCsrf, secureCookies = process.env.NODE_ENV === "production" }) {
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet());
-  app.use(cors({ origin: webOrigin, methods: ["GET", "POST"] }));
+  app.use(cors({ origin: webOrigin, credentials: true, methods: ["GET", "POST", "PATCH"] }));
   app.use((req, res, next) => {
     if (req.method !== "GET" && req.get("origin") && req.get("origin") !== webOrigin)
       return res.status(403).json({ message: "Origen no autorizado" });
@@ -20,9 +27,24 @@ export function createApp({ db, webOrigin }) {
     await db.$queryRaw`SELECT 1`;
     res.json({ status: "ok" });
   });
-  app.use("/api/v1/operations/resources", equipmentRoutes(db));
-  app.use("/api/v1/clients", clientRoutes(db));
-  app.use("/api/v1/events", eventosRoutes(db));
+  app.use("/api/v1/public/requests", publicRequestRoutes(db));
+  app.use("/api/v1/auth", sessionRoutes(db, secureCookies));
+  const publicEvents = eventosRoutes(db);
+  app.use("/api/v1/events", (req, res, next) => {
+    if (req.method === "GET" && req.path === "/public") return publicEvents(req, res, next);
+    next();
+  });
+  app.use("/api/v1", sessionMiddleware, requireSession, csrfMiddleware, (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+  app.post("/api/v1/quotes/:id/approve", blockDecision);
+  app.post("/api/v1/payments/:id/verify", blockDecision);
+  app.patch("/api/v1/operations/resources/:id/assignments/:assignmentId/replacements/:replacementId/decision", blockDecision);
+  app.use("/api/v1/operations/resources", requireArea("recursos:leer", "recursos:editar"), equipmentRoutes(db));
+  app.use("/api/v1/operations/vehicles", requireArea("recursos:leer", "recursos:editar"), vehicleRoutes(db));
+  app.use("/api/v1/requests", requireArea("solicitudes:leer", "solicitudes:leer"), internalRequestRoutes(db));
+  app.use("/api/v1/clients", requireArea("clientes:leer", "clientes:editar"), clientRoutes(db));
+  app.use("/api/v1/events", requireArea("eventos:leer", "eventos:editar"), eventosRoutes(db));
+  app.use("/api/v1/quotes", requireArea("cotizaciones:leer", "cotizaciones:editar"), quoteRoutes(db));
+  app.use("/api/v1/payments", requireArea("pagos:leer", "pagos:registrar"), paymentRoutes(db));
 
   app.use((_req, res) => res.status(404).json({ message: "Ruta no encontrada" }));
   app.use((error, _req, res, _next) => {

@@ -1,0 +1,334 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { getClientes, getTiposEvento, updateEvento } from "@/services/eventos";
+import { eventoFormSchema } from "@/schemas/eventos.schema";
+
+function toDatetimeLocal(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function getFormValues(evento) {
+  if (!evento) {
+    return {
+      title: "",
+      clientId: "",
+      eventTypeId: "",
+      startsAt: "",
+      endsAt: "",
+      attendees: "",
+      location: "",
+      needs: "",
+    };
+  }
+
+  const clientId =
+    evento.clientId ??
+    (typeof evento.client === "object" ? evento.client?.id : evento.client) ??
+    "";
+
+  const rawEventTypeId =
+    evento.eventTypeId ??
+    (typeof evento.eventType === "object" ? evento.eventType?.id : evento.eventType);
+  const eventTypeId =
+    rawEventTypeId !== undefined && rawEventTypeId !== null ? String(rawEventTypeId) : "";
+
+  return {
+    title: evento.title || "",
+    clientId: String(clientId),
+    eventTypeId,
+    startsAt: toDatetimeLocal(evento.startsAt),
+    endsAt: toDatetimeLocal(evento.endsAt),
+    attendees: evento.attendees !== undefined && evento.attendees !== null ? String(evento.attendees) : "",
+    location: evento.location || "",
+    needs: evento.needs || "",
+  };
+}
+
+export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
+  const [clientes, setClientes] = useState([]);
+  const [tipos, setTipos] = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [optionsLoaded, setOptionsLoaded] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(eventoFormSchema),
+    defaultValues: getFormValues(evento),
+  });
+
+  const selectedClientId = watch("clientId");
+  const selectedEventTypeId = watch("eventTypeId");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (open && evento) {
+      setError("");
+      setLoadingOptions(true);
+      setOptionsLoaded(false);
+
+      // Precargar los valores del evento inmediatamente al abrir
+      const initialValues = getFormValues(evento);
+      reset(initialValues);
+
+      Promise.all([getClientes(), getTiposEvento()])
+        .then(([clientesRecibidos, tiposRecibidos]) => {
+          if (!isMounted) return;
+
+          if (
+            !Array.isArray(clientesRecibidos) ||
+            !Array.isArray(tiposRecibidos)
+          ) {
+            throw new Error("Respuesta de opciones inválida");
+          }
+
+          setClientes(clientesRecibidos);
+          setTipos(tiposRecibidos);
+          setOptionsLoaded(true);
+        })
+        .catch(() => {
+          if (!isMounted) return;
+
+          setError(
+            "Error al cargar clientes o tipos de evento. No es posible editar el evento."
+          );
+        })
+        .finally(() => {
+          if (isMounted) {
+            setLoadingOptions(false);
+          }
+        });
+    } else {
+      // Limpiar estado al cerrar
+      setClientes([]);
+      setTipos([]);
+      setError("");
+      setOptionsLoaded(false);
+      reset(getFormValues(null));
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [evento, open, reset]);
+
+  async function onSubmit(data) {
+    if (!evento?.id) return;
+    setError("");
+    const start = new Date(data.startsAt);
+    const end = new Date(data.endsAt);
+
+    setLoading(true);
+    try {
+      const updated = await updateEvento(evento.id, {
+        title: data.title.trim(),
+        clientId: String(data.clientId).trim(),
+        eventTypeId: parseInt(data.eventTypeId, 10),
+        startsAt: start.toISOString(),
+        endsAt: end.toISOString(),
+        attendees: parseInt(data.attendees, 10),
+        location: data.location?.trim() || null,
+        needs: data.needs?.trim() || null,
+      });
+
+      onOpenChange(false);
+      onSaved?.(updated);
+    } catch (err) {
+      // Conservar datos y mostrar error (ej: 409 conflicto de espacio)
+      setError(err.message || "Error al actualizar el evento.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle>Editar evento</DialogTitle>
+        </DialogHeader>
+        {error && (
+          <p className="text-sm text-red-500 bg-red-500/10 p-2 rounded" role="alert">
+            {error}
+          </p>
+        )}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <div className="space-y-1">
+            <Label htmlFor="edit-title">Título del evento *</Label>
+            <Input
+              id="edit-title"
+              placeholder="Ej: Gala Anual 2026"
+              {...register("title")}
+              aria-invalid={Boolean(errors.title)}
+              aria-describedby={errors.title ? "edit-title-error" : undefined}
+            />
+            {errors.title && (
+              <p className="text-xs text-red-500" id="edit-title-error">
+                {errors.title.message}
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="edit-client">Cliente *</Label>
+              <select
+                id="edit-client"
+                {...register("clientId")}
+                value={selectedClientId ?? ""}
+                disabled={loadingOptions || !optionsLoaded || loading}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                aria-invalid={Boolean(errors.clientId)}
+                aria-describedby={errors.clientId ? "edit-client-error" : undefined}
+              >
+                <option value="">
+                  {loadingOptions ? "Cargando clientes..." : "Seleccionar..."}
+                </option>
+                {clientes.map((cliente) => (
+                  <option key={cliente.id} value={String(cliente.id)}>
+                    {cliente.name}
+                  </option>
+                ))}
+              </select>
+              {errors.clientId && (
+                <p className="text-xs text-red-500" id="edit-client-error">
+                  {errors.clientId.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="edit-eventType">Tipo de evento *</Label>
+              <select
+                id="edit-eventType"
+                {...register("eventTypeId")}
+                value={selectedEventTypeId ?? ""}
+                disabled={loadingOptions || !optionsLoaded || loading}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                aria-invalid={Boolean(errors.eventTypeId)}
+                aria-describedby={errors.eventTypeId ? "edit-eventType-error" : undefined}
+              >
+                <option value="">
+                  {loadingOptions ? "Cargando tipos de evento..." : "Seleccionar..."}
+                </option>
+                {tipos.map((tipo) => (
+                  <option key={tipo.id} value={String(tipo.id)}>
+                    {tipo.name}
+                  </option>
+                ))}
+              </select>
+              {errors.eventTypeId && (
+                <p className="text-xs text-red-500" id="edit-eventType-error">
+                  {errors.eventTypeId.message}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="edit-startsAt">Fecha/Hora inicio *</Label>
+              <Input
+                id="edit-startsAt"
+                type="datetime-local"
+                {...register("startsAt")}
+                aria-invalid={Boolean(errors.startsAt)}
+                aria-describedby={errors.startsAt ? "edit-startsAt-error" : undefined}
+              />
+              {errors.startsAt && (
+                <p className="text-xs text-red-500" id="edit-startsAt-error">
+                  {errors.startsAt.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="edit-endsAt">Fecha/Hora término *</Label>
+              <Input
+                id="edit-endsAt"
+                type="datetime-local"
+                {...register("endsAt")}
+                aria-invalid={Boolean(errors.endsAt)}
+                aria-describedby={errors.endsAt ? "edit-endsAt-error" : undefined}
+              />
+              {errors.endsAt && (
+                <p className="text-xs text-red-500" id="edit-endsAt-error">
+                  {errors.endsAt.message}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="edit-attendees">Cantidad de asistentes *</Label>
+            <Input
+              id="edit-attendees"
+              type="number"
+              min={1}
+              max={100000}
+              placeholder="Ej: 50"
+              {...register("attendees")}
+              aria-invalid={Boolean(errors.attendees)}
+              aria-describedby={errors.attendees ? "edit-attendees-error" : undefined}
+            />
+            {errors.attendees && (
+              <p className="text-xs text-red-500" id="edit-attendees-error">
+                {errors.attendees.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="edit-location">Lugar / Espacio (opcional)</Label>
+            <Input
+              id="edit-location"
+              placeholder="Ej: Salón Principal"
+              {...register("location")}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="edit-needs">Necesidades o notas (opcional)</Label>
+            <Input
+              id="edit-needs"
+              placeholder="Ej: Iluminación cálida y microfonía"
+              {...register("needs")}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading || loadingOptions || !optionsLoaded}>
+              {loading ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
