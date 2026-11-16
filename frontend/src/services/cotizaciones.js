@@ -46,6 +46,13 @@ export async function createQuote(payload) {
   });
 }
 
+export async function updateQuote(id, payload) {
+  return quoteRequest(`/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function submitQuoteForReview(id) {
   return quoteRequest(`/${id}/submit-review`, {
     method: "POST",

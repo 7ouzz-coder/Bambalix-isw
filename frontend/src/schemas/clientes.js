@@ -16,15 +16,13 @@ export const clientFormSchema = z
     rut: z
       .string()
       .trim()
-      .max(20, "El RUT admite hasta 20 caracteres")
-      .optional()
-      .or(z.literal("")),
+      .min(1, "El RUT es obligatorio")
+      .max(20, "El RUT admite hasta 20 caracteres"),
     phone: z
       .string()
       .trim()
-      .max(40, "El teléfono admite hasta 40 caracteres")
-      .optional()
-      .or(z.literal("")),
+      .min(1, "El teléfono es obligatorio")
+      .max(40, "El teléfono admite hasta 40 caracteres"),
     address: z
       .string()
       .trim()
