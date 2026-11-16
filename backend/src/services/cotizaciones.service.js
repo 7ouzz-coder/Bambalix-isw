@@ -1,5 +1,60 @@
 import { Prisma } from "@prisma/client";
 
+async function prepararCotizacion(db, data) {
+  // 1. Validar existencia del cliente
+  const cliente = await db.client.findUnique({
+    where: { id: data.clientId },
+  });
+  if (!cliente) {
+    const err = new Error("Cliente no encontrado");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // 2. Validar existencia del evento real
+  const evento = await db.event.findUnique({ where: { id: data.eventId } });
+  if (!evento) {
+    const err = new Error("Evento no encontrado");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // 3. Validar vinculación coherente: el evento debe pertenecer al cliente
+  if (evento.clientId !== data.clientId) {
+    const err = new Error(
+      "El evento seleccionado no pertenece al cliente indicado",
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
+  let totalCalculado = new Prisma.Decimal(0);
+  const itemsPreparados = data.items.map((item) => {
+    const quantity = item.quantity;
+    const unitPrice = new Prisma.Decimal(item.unitPrice);
+    const subtotal = unitPrice.times(quantity);
+    totalCalculado = totalCalculado.plus(subtotal);
+
+    return {
+      concept: item.concept.trim(),
+      quantity,
+      unitPrice,
+      subtotal,
+    };
+  });
+
+  // Validar límite superior de columna Decimal(12,2) en PostgreSQL
+  if (totalCalculado.greaterThan("9999999999.99")) {
+    const err = new Error(
+      "El importe total excede el límite máximo permitido por el sistema",
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return { totalCalculado, itemsPreparados };
+}
+
 export function quoteService(db) {
   return {
     async listar(filtros = {}) {
@@ -37,56 +92,7 @@ export function quoteService(db) {
     },
 
     async crear(data) {
-      // 1. Validar existencia del cliente
-      const cliente = await db.client.findUnique({
-        where: { id: data.clientId },
-      });
-      if (!cliente) {
-        const err = new Error("Cliente no encontrado");
-        err.statusCode = 404;
-        throw err;
-      }
-
-      // 2. Validar existencia del evento real
-      const evento = await db.event.findUnique({ where: { id: data.eventId } });
-      if (!evento) {
-        const err = new Error("Evento no encontrado");
-        err.statusCode = 404;
-        throw err;
-      }
-
-      // 3. Validar vinculación coherente: el evento debe pertenecer al cliente
-      if (evento.clientId !== data.clientId) {
-        const err = new Error(
-          "El evento seleccionado no pertenece al cliente indicado",
-        );
-        err.statusCode = 400;
-        throw err;
-      }
-
-      let totalCalculado = new Prisma.Decimal(0);
-      const itemsPreparados = data.items.map((item) => {
-        const quantity = item.quantity;
-        const unitPrice = new Prisma.Decimal(item.unitPrice);
-        const subtotal = unitPrice.times(quantity);
-        totalCalculado = totalCalculado.plus(subtotal);
-
-        return {
-          concept: item.concept.trim(),
-          quantity,
-          unitPrice,
-          subtotal,
-        };
-      });
-
-      // Validar límite superior de columna Decimal(12,2) en PostgreSQL
-      if (totalCalculado.greaterThan("9999999999.99")) {
-        const err = new Error(
-          "El importe total excede el límite máximo permitido por el sistema",
-        );
-        err.statusCode = 400;
-        throw err;
-      }
+      const { totalCalculado, itemsPreparados } = await prepararCotizacion(db, data);
 
       const date = new Date();
       for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -127,6 +133,46 @@ export function quoteService(db) {
       );
       err.statusCode = 409;
       throw err;
+    },
+
+    async editarBorrador(id, data) {
+      return db.$transaction(async (tx) => {
+        const quote = await tx.quote.findUnique({
+          where: { id },
+          select: { status: true },
+        });
+        if (!quote || quote.status !== "BORRADOR") {
+          const error = new Error(quote ? "Solo se pueden editar cotizaciones en borrador" : "Cotización no encontrada");
+          error.statusCode = quote ? 409 : 404;
+          throw error;
+        }
+
+        const { totalCalculado, itemsPreparados } = await prepararCotizacion(tx, data);
+        const updated = await tx.quote.updateMany({
+          where: { id, status: "BORRADOR" },
+          data: {
+            clientId: data.clientId,
+            eventId: data.eventId,
+            notes: data.notes,
+            total: totalCalculado,
+          },
+        });
+        if (!updated.count) {
+          const error = new Error("La cotización dejó de estar en borrador");
+          error.statusCode = 409;
+          throw error;
+        }
+
+        return tx.quote.update({
+          where: { id },
+          data: { items: { deleteMany: {}, create: itemsPreparados } },
+          include: {
+            client: { select: { id: true, name: true, email: true, rut: true } },
+            event: { select: { id: true, title: true, startsAt: true, endsAt: true } },
+            items: true,
+          },
+        });
+      });
     },
 
     async enviarARevision(id) {
