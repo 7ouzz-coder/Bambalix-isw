@@ -18,7 +18,7 @@ describe.skipIf(!enabled)('Flujos HTTP integrados',()=>{
    user=await createInternalUser(db,{name:'Cuenta temporal',email:`${suffix}@example.test`,password,role:'GERENTE',permissions:['clientes:leer','clientes:editar','eventos:leer','eventos:editar','recursos:leer','recursos:editar','cotizaciones:leer','cotizaciones:editar','pagos:leer','pagos:registrar','solicitudes:leer']});
    type=await db.eventType.create({data:{name:suffix}});
    const login=await fetch(api+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:user.email,password})}); expect(login.status).toBe(200); cookie=login.headers.get('set-cookie').split(';')[0];csrf=(await login.json()).csrfToken;
-   client=await call('POST','/clients',{name:'Cliente prueba',email:`${suffix}@example.test`},201);
+   client=await call('POST','/clients',{name:'Cliente prueba',email:`${suffix}@example.test`,rut:suffix.slice(0,12),phone:'+56912345678'},201);
    await call('PATCH',`/clients/${client.id}`,{name:'Cliente actualizado'},200);
    expect((await db.client.findUniqueOrThrow({where:{id:client.id}})).name).toBe('Cliente actualizado');
    event=await call('POST','/events',{title:'Evento prueba',clientId:client.id,eventTypeId:type.id,startsAt:'2029-06-01T10:00:00Z',endsAt:'2029-06-01T12:00:00Z',attendees:10},201);

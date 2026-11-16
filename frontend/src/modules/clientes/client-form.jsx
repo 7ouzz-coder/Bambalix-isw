@@ -101,8 +101,8 @@ export function ClientForm({ clientToEdit = null, onSaved, trigger = null, open:
       const payload = {
         name: data.name.trim(),
         email: data.email.trim(),
-        rut: data.rut ? data.rut.trim() : null,
-        phone: data.phone ? data.phone.trim() : null,
+        rut: data.rut.trim(),
+        phone: data.phone.trim(),
         address: data.address ? data.address.trim() : null,
         clientType: data.clientType,
         contactName: data.clientType === "empresa" && data.contactName ? data.contactName.trim() : null,
@@ -211,7 +211,7 @@ export function ClientForm({ clientToEdit = null, onSaved, trigger = null, open:
           </div>
 
           <div className="field">
-            <Label htmlFor="client-rut">RUT (opcional)</Label>
+            <Label htmlFor="client-rut">RUT *</Label>
             <Input
               id="client-rut"
               type="text"
@@ -225,7 +225,7 @@ export function ClientForm({ clientToEdit = null, onSaved, trigger = null, open:
           </div>
 
           <div className="field">
-            <Label htmlFor="client-phone">Teléfono (opcional)</Label>
+            <Label htmlFor="client-phone">Teléfono *</Label>
             <Input
               id="client-phone"
               type="tel"
