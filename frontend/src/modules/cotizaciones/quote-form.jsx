@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { clientRequest } from "@/services/clientes";
-import { createQuote, quoteFormSchema } from "@/services/cotizaciones";
+import { createQuote, updateQuote, quoteFormSchema } from "@/services/cotizaciones";
 import { getEventos } from "@/services/eventos";
 import { getQuotePreview } from "@/lib/cotizaciones";
 
@@ -48,7 +48,7 @@ const defaultValues = {
   items: [{ concept: "", quantity: 1, unitPrice: 0 }],
 };
 
-export function QuoteForm({ onSaved }) {
+export function QuoteForm({ onSaved, quote }) {
   const [open, setOpen] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState("");
@@ -78,6 +78,7 @@ export function QuoteForm({ onSaved }) {
   });
 
   const selectedClientId = watch("clientId");
+  const selectedEventId = watch("eventId");
   const watchedItems = watch("items") || [];
 
   const preview = getQuotePreview(watchedItems);
@@ -155,6 +156,18 @@ export function QuoteForm({ onSaved }) {
 
   function handleOpenChange(next) {
     if (isSubmitting) return;
+    if (next && quote) {
+      reset({
+        clientId: quote.clientId,
+        eventId: String(quote.eventId),
+        notes: quote.notes ?? "",
+        items: quote.items.map(({ concept, quantity, unitPrice }) => ({
+          concept,
+          quantity,
+          unitPrice: Number(unitPrice),
+        })),
+      });
+    }
     setOpen(next);
     if (!next) {
       reset(defaultValues);
@@ -193,7 +206,7 @@ export function QuoteForm({ onSaved }) {
         })),
       };
 
-      const result = await createQuote(payload);
+      const result = quote ? await updateQuote(quote.id, payload) : await createQuote(payload);
       setOpen(false);
       reset(defaultValues);
       if (onSaved) onSaved(result);
@@ -208,15 +221,15 @@ export function QuoteForm({ onSaved }) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button className="primary-action">
-          <Plus aria-hidden="true" />
-          Nueva cotización
+        <Button className={quote ? undefined : "primary-action"} variant={quote ? "outline" : "default"} size={quote ? "sm" : "default"}>
+          {!quote && <Plus aria-hidden="true" />}
+          {quote ? "Editar" : "Nueva cotización"}
         </Button>
       </DialogTrigger>
 
       <DialogContent className="equipment-dialog max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nueva cotización comercial</DialogTitle>
+          <DialogTitle>{quote ? "Editar cotización en borrador" : "Nueva cotización comercial"}</DialogTitle>
           <DialogDescription>
             Selecciona el cliente y el evento asociado. Agrega los ítems con sus precios.
           </DialogDescription>
@@ -244,6 +257,7 @@ export function QuoteForm({ onSaved }) {
               <Label htmlFor="quote-client">Cliente *</Label>
               <select
                 id="quote-client"
+                value={selectedClientId}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={isSubmitting || loadingData || !hasLoadedValidData}
                 {...register("clientId", {
@@ -272,6 +286,7 @@ export function QuoteForm({ onSaved }) {
               <Label htmlFor="quote-event">Evento asociado *</Label>
               <select
                 id="quote-event"
+                value={selectedEventId}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={isSubmitting || loadingData || !hasLoadedValidData || !selectedClientId}
                 {...register("eventId")}
@@ -433,7 +448,7 @@ export function QuoteForm({ onSaved }) {
                   Cargando datos…
                 </>
               ) : (
-                "Guardar como Borrador"
+                quote ? "Guardar cambios" : "Guardar como Borrador"
               )}
             </Button>
           </div>

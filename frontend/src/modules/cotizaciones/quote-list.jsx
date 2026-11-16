@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getQuotes, submitQuoteForReview } from "@/services/cotizaciones";
+import { QuoteForm } from "./quote-form";
 import styles from "./quote-list.module.css";
 
 export function QuoteList({ revision, onStatusChanged }) {
@@ -144,6 +145,16 @@ export function QuoteList({ revision, onStatusChanged }) {
                       <Eye className="w-3.5 h-3.5 mr-1" />
                       Detalle
                     </Button>
+
+                    {quote.status === "BORRADOR" && actionLoading !== quote.id && (
+                      <QuoteForm quote={quote} onSaved={(updated) => {
+                        setState((previous) => ({
+                          ...previous,
+                          items: previous.items.map((item) => item.id === updated.id ? updated : item),
+                        }));
+                        onStatusChanged?.(`Cotización ${updated.code} actualizada.`);
+                      }} />
+                    )}
 
                     {quote.status === "BORRADOR" && (
                       <Button

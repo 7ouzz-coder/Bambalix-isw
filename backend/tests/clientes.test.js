@@ -82,6 +82,8 @@ describe("Requisito 1: Gestión de clientes", () => {
       const response = await api.post("/api/v1/clients").send({
         name: "Ana Pérez",
         email: "ana@example.com",
+        rut: "13.987.654-3",
+        phone: "+56912345678",
       });
       expect(response.status).toBe(201);
       expect(db.client.create).toHaveBeenCalledWith({
@@ -91,6 +93,15 @@ describe("Requisito 1: Gestión de clientes", () => {
           clientType: "persona",
         }),
       });
+    });
+
+    it.each(["rut", "phone"])("rechaza alta y borrado de %s", async (field) => {
+      const { api, db } = setup();
+      const { [field]: omitted, ...payload } = payloadPersona;
+      expect((await api.post("/api/v1/clients").send(payload)).status).toBe(400);
+      expect((await api.patch("/api/v1/clients/cli_test_1").send({ [field]: null })).status).toBe(400);
+      expect(db.client.create).not.toHaveBeenCalled();
+      expect(db.client.update).not.toHaveBeenCalled();
     });
 
     it("responde 409 cuando ya existe un cliente con ese RUT", async () => {
@@ -145,13 +156,13 @@ describe("Requisito 1: Gestión de clientes", () => {
     it("permite vaciar explícitamente un campo opcional enviando null", async () => {
       const { api, db } = setup();
       const response = await api.patch("/api/v1/clients/cli_test_1").send({
-        phone: null,
+        address: null,
       });
       expect(response.status).toBe(200);
       expect(db.client.update).toHaveBeenCalledWith({
         where: { id: "cli_test_1" },
         data: {
-          phone: null,
+          address: null,
         },
       });
     });

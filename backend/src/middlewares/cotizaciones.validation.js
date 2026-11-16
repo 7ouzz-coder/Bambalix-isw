@@ -8,7 +8,7 @@ function formatearErroresZod(error) {
   return "Datos de la cotización inválidos";
 }
 
-export function validateCreateQuote(req, res, next) {
+export function validateQuoteInput(req, res, next) {
   const parseResult = createQuoteSchema.safeParse(req.body);
   if (!parseResult.success) {
     return res.status(400).json({
