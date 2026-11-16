@@ -12,6 +12,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "node prisma/seed.js",
+    "seed:postman": "node prisma/seed-postman.js",
     "user:create": "node src/crear-usuario.js"
   },
   "prisma": {
