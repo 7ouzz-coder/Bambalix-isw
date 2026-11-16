@@ -33,7 +33,13 @@ describe.skipIf(!enabled)('Flujos HTTP integrados',()=>{
    expect((await db.vehicle.findUniqueOrThrow({where:{id:vehicle.id}})).name).toBe('Vehículo actualizado');
    quote=await call('POST','/quotes',{clientId:client.id,eventId:event.id,items:[{concept:'Servicio de audio',quantity:1,unitPrice:100}]},201);
    expect((await db.quote.findUniqueOrThrow({where:{id:quote.id}})).status).toBe('BORRADOR');
+   const editedQuote = {clientId:client.id,eventId:event.id,notes:'Revisada',items:[{concept:'Audio actualizado',quantity:2,unitPrice:125}]};
+   const edited = await call('PATCH',`/quotes/${quote.id}`,editedQuote,200);
+   expect(edited).toMatchObject({id:quote.id,status:'BORRADOR',total:'250',notes:'Revisada'});
+   expect(edited.items.map(({concept}) => concept)).toEqual(['Audio actualizado']);
    await call('POST',`/quotes/${quote.id}/submit-review`,{},200);
+   await call('PATCH',`/quotes/${quote.id}`,{...editedQuote,notes:'No debe guardarse'},409);
+   expect(await call('GET',`/quotes/${quote.id}`,undefined,200)).toMatchObject({status:'EN_REVISION',total:'250',notes:'Revisada'});
    await call('POST',`/quotes/${quote.id}/approve`,{},403);
    payment=await call('POST','/payments',{quoteId:quote.id,amount:50,method:'EFECTIVO'},201);
    const savedPayment=await db.payment.findUniqueOrThrow({where:{id:payment.id}}); expect(savedPayment.registeredBy).toBe(user.id);expect(savedPayment.status).toBe('REGISTRADO');

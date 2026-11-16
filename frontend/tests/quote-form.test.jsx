@@ -42,11 +42,11 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
     }
   });
 
-  async function openDialog(onSaved = vi.fn()) {
+  async function openDialog(onSaved = vi.fn(), quote) {
     await act(async () => {
-      root.render(<QuoteForm onSaved={onSaved} />);
+      root.render(<QuoteForm onSaved={onSaved} quote={quote} />);
     });
-    const trigger = container.querySelector("button.primary-action");
+    const trigger = container.querySelector("button");
     await act(async () => {
       trigger.click();
     });
@@ -62,6 +62,40 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
     }
     input.dispatchEvent(new Event(eventType, { bubbles: true }));
   }
+
+  it("precarga un borrador y guarda los cambios usando su ID", async () => {
+    vi.spyOn(clientesService, "clientRequest").mockResolvedValue(validClients);
+    vi.spyOn(eventosService, "getEventos").mockResolvedValue(validEvents);
+    const onSaved = vi.fn();
+    const quote = {
+      id: "quote_1",
+      clientId: "cli_1",
+      eventId: 101,
+      notes: "Nota anterior",
+      items: [{ concept: "Audio", quantity: 2, unitPrice: "15000" }],
+    };
+    const update = vi.spyOn(cotizacionesService, "updateQuote").mockResolvedValue(quote);
+    await openDialog(onSaved, quote);
+
+    expect(document.querySelector("#quote-client").value).toBe("cli_1");
+    expect(document.querySelector("#quote-event").value).toBe("101");
+    expect(document.querySelector("#quote-concept-0").value).toBe("Audio");
+    expect(document.querySelector("#quote-price-0").value).toBe("15000");
+    expect(document.querySelector("#quote-notes").value).toBe("Nota anterior");
+
+    await act(async () => setInputValue(document.querySelector("#quote-price-0"), "16000"));
+    await act(async () => {
+      document.querySelector("form.equipment-form")
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(update).toHaveBeenCalledWith("quote_1", {
+      clientId: "cli_1",
+      eventId: 101,
+      notes: "Nota anterior",
+      items: [{ concept: "Audio", quantity: 2, unitPrice: 16000 }],
+    });
+    expect(onSaved).toHaveBeenCalledWith(quote);
+  });
 
   it("Guardar está deshabilitado durante la carga y no se llama a createQuote", async () => {
     const createQuoteSpy = vi.spyOn(cotizacionesService, "createQuote");
@@ -295,7 +329,7 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
     });
 
     expect(document.body.querySelector('[role="dialog"]')).toBeNull();
-    await act(async () => { container.querySelector("button.primary-action").click(); });
+    await act(async () => { container.querySelector("button").click(); });
     expect(document.body.querySelector("#quote-client").value).toBe("");
     expect(document.body.querySelector("#quote-event").value).toBe("");
     expect(document.body.querySelector("#quote-notes").value).toBe("");
@@ -348,7 +382,7 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
     await act(async () => {
       root.render(<QuoteForm onSaved={vi.fn()} />);
     });
-    const trigger = container.querySelector("button.primary-action");
+    const trigger = container.querySelector("button");
 
     // Primera apertura (queda en espera con firstPromise)
     await act(async () => {

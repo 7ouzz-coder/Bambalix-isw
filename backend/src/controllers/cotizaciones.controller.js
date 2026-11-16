@@ -37,6 +37,17 @@ export function quoteController(db) {
       }
     },
 
+    async editarBorrador(req, res, next) {
+      try {
+        res.json(await service.editarBorrador(req.params.id, req.validatedBody));
+      } catch (error) {
+        if (error.statusCode) {
+          return res.status(error.statusCode).json({ message: error.message });
+        }
+        next(error);
+      }
+    },
+
     async enviarARevision(req, res, next) {
       try {
         const cotizacionActualizada = await service.enviarARevision(req.params.id);
