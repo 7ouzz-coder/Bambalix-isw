@@ -9,6 +9,9 @@ const createOptionalText = (max) =>
     .nullable()
     .transform((val) => (val && val.trim() !== "" ? val.trim() : null));
 
+const requiredRut = z.string({ error: "El RUT es obligatorio" }).trim().min(1, "El RUT es obligatorio").max(20);
+const requiredPhone = z.string({ error: "El teléfono es obligatorio" }).trim().min(1, "El teléfono es obligatorio").max(40);
+
 export const createClientSchema = z
   .object({
     name: z
@@ -21,8 +24,8 @@ export const createClientSchema = z
       .trim()
       .max(254, "El correo no puede superar 254 caracteres")
       .email("Ingresa un correo electrónico válido"),
-    rut: createOptionalText(20),
-    phone: createOptionalText(40),
+    rut: requiredRut,
+    phone: requiredPhone,
     address: createOptionalText(240),
     clientType: z.enum(["persona", "empresa"]).default("persona"),
     contactName: createOptionalText(120),
@@ -79,8 +82,8 @@ export const updateClientSchema = z
       .max(254, "El correo no puede superar 254 caracteres")
       .email("Ingresa un correo electrónico válido")
       .optional(),
-    rut: patchOptionalNullableText(20),
-    phone: patchOptionalNullableText(40),
+    rut: requiredRut.optional(),
+    phone: requiredPhone.optional(),
     address: patchOptionalNullableText(240),
     clientType: z.enum(["persona", "empresa"]).optional(),
     contactName: patchOptionalNullableText(120),

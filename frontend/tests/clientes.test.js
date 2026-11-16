@@ -12,7 +12,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("Formulario y servicio de clientes", () => {
   it("acepta los campos obligatorios y opcionales vacíos", () => {
-    expect(validateClient({ name: "Ana Pérez", email: "ana@example.com" })).toEqual({});
+    expect(validateClient({ name: "Ana Pérez", email: "ana@example.com", rut: "12.345.678-5", phone: "+56912345678" })).toEqual({});
   });
 
   it("valida campos requeridos, correo y longitudes", () => {
@@ -31,6 +31,8 @@ describe("Formulario y servicio de clientes", () => {
     const errors = validateClient({
       name: "Empresa SPA",
       email: "empresa@ejemplo.cl",
+      rut: "76.543.210-3",
+      phone: "+56223456789",
       clientType: "empresa",
       contactName: "",
     });
@@ -60,13 +62,19 @@ describe("Formulario y servicio de clientes", () => {
     const personaValida = clientFormSchema.safeParse({
       name: "Juan Pérez",
       email: "juan@ejemplo.cl",
+      rut: "12.345.678-5",
+      phone: "+56912345678",
       clientType: "persona",
     });
     expect(personaValida.success).toBe(true);
+    expect(clientFormSchema.safeParse({ ...personaValida.data, rut: " " }).success).toBe(false);
+    expect(clientFormSchema.safeParse({ ...personaValida.data, phone: "" }).success).toBe(false);
 
     const empresaInvalida = clientFormSchema.safeParse({
       name: "Producciones SA",
       email: "prod@ejemplo.cl",
+      rut: "76.543.210-3",
+      phone: "+56223456789",
       clientType: "empresa",
       contactName: "",
     });
@@ -75,6 +83,8 @@ describe("Formulario y servicio de clientes", () => {
     const empresaValida = clientFormSchema.safeParse({
       name: "Producciones SA",
       email: "prod@ejemplo.cl",
+      rut: "76.543.210-3",
+      phone: "+56223456789",
       clientType: "empresa",
       contactName: "Roberto Gómez",
     });

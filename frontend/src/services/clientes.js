@@ -67,8 +67,10 @@ export function validateClient({
   if (normalizedEmail.length === 0) errors.email = "El correo es obligatorio";
   else if (normalizedEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail))
     errors.email = "Escribe un correo válido de hasta 254 caracteres";
-  if (rut && rut.trim().length > 20) errors.rut = "El RUT admite hasta 20 caracteres";
-  if (phone && phone.trim().length > 40) errors.phone = "El teléfono admite hasta 40 caracteres";
+  if (!rut.trim()) errors.rut = "El RUT es obligatorio";
+  else if (rut.trim().length > 20) errors.rut = "El RUT admite hasta 20 caracteres";
+  if (!phone.trim()) errors.phone = "El teléfono es obligatorio";
+  else if (phone.trim().length > 40) errors.phone = "El teléfono admite hasta 40 caracteres";
   if (address && address.trim().length > 240) errors.address = "La dirección admite hasta 240 caracteres";
   if (clientType === "empresa" && (!contactName || contactName.trim().length < 2)) {
     errors.contactName = "Para empresas es obligatorio indicar el encargado de contacto";
