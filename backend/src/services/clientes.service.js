@@ -39,6 +39,14 @@ export function clientService(db) {
         }
       }
 
+      for (const [field, label] of [["rut", "RUT"], ["phone", "teléfono"]]) {
+        if (!objetoFusionado[field]?.trim()) {
+          const error = new Error(`El ${label} es obligatorio`);
+          error.statusCode = 400;
+          throw error;
+        }
+      }
+
       // 3. Validar regla 'empresa vs contacto' sobre el objeto final fusionado
       if (objetoFusionado.clientType === "empresa") {
         if (!objetoFusionado.contactName || objetoFusionado.contactName.trim().length < 2) {
