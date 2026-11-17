@@ -88,6 +88,7 @@ export const eventoItemSchema = z
       .optional(),
     location: z.string().nullable().optional(),
     needs: z.string().nullable().optional(),
+    status: z.string().nullable().optional(),
     eventType: z
       .object({
         id: z.number().int().optional(),
