@@ -137,14 +137,15 @@ export async function createEvento(db, datos) {
     const startsAt = new Date(datos.startsAt);
     const endsAt = new Date(datos.endsAt);
     const location = normalizeSpace(datos.location);
-
-    if (location) {
-      await checkSpaceConflict(tx, {
-        location,
-        startsAt,
-        endsAt,
-      });
+    if (!location) {
+      throw new ValidationError("El lugar o espacio es obligatorio");
     }
+
+    await checkSpaceConflict(tx, {
+      location,
+      startsAt,
+      endsAt,
+    });
 
     return tx.event.create({
       data: {

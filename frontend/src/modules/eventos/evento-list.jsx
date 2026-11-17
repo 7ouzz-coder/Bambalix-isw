@@ -82,7 +82,15 @@ export function EventoList({ revision, onEventoUpdated }) {
                 <TableCell>{e.eventType?.name || "-"}</TableCell>
                 <TableCell>{formatDate(e.startsAt)}</TableCell>
                 <TableCell>{formatDate(e.endsAt)}</TableCell>
-                <TableCell>{e.location || "—"}</TableCell>
+                <TableCell>
+                  {e.location ? (
+                    e.location
+                  ) : (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium text-xs">
+                      Sin lugar asignado
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="text-right">{e.attendees}</TableCell>
                 <TableCell className="text-center">
                   <Button

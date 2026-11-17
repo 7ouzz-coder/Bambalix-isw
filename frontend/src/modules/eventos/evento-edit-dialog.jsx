@@ -302,10 +302,17 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="edit-location">Lugar / Espacio (opcional)</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="edit-location">Lugar / Espacio</Label>
+              {!evento?.location && (
+                <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                  Pendiente de completar
+                </span>
+              )}
+            </div>
             <Input
               id="edit-location"
-              placeholder="Ej: Salón Principal"
+              placeholder="Ej: Salón Principal (sin espacio asignado)"
               {...register("location")}
             />
           </div>

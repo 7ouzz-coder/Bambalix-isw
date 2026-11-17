@@ -29,7 +29,11 @@ export const crearEventoSchema = z
       .int("Los asistentes deben ser un número entero")
       .min(1, "Debe haber al menos 1 asistente")
       .max(100000, "Los asistentes no pueden superar 100.000"),
-    location: z.string().optional(),
+    location: z
+      .string({ error: "El lugar o espacio es obligatorio" })
+      .trim()
+      .min(1, "El lugar o espacio es obligatorio")
+      .max(200, "El lugar no puede superar 200 caracteres"),
     needs: z.string().optional(),
   })
   .strict()
@@ -106,7 +110,13 @@ export const editarEventoSchema = z
       .min(1, "Debe haber al menos 1 asistente")
       .max(100000, "Los asistentes no pueden superar 100.000")
       .optional(),
-    location: z.string().nullable().optional(),
+    location: z
+      .string()
+      .trim()
+      .min(1, "El lugar no puede estar vacío")
+      .max(200, "El lugar no puede superar 200 caracteres")
+      .nullable()
+      .optional(),
     needs: z.string().nullable().optional(),
   })
   .strict()
@@ -214,7 +224,13 @@ export const coordinarReprogramacionSchema = z
       .min(1, "Debe haber al menos 1 asistente")
       .max(100000, "Los asistentes no pueden superar 100.000")
       .optional(),
-    location: z.string().nullable().optional(),
+    location: z
+      .string()
+      .trim()
+      .min(1, "El lugar no puede estar vacío")
+      .max(200, "El lugar no puede superar 200 caracteres")
+      .nullable()
+      .optional(),
     needs: z.string().nullable().optional(),
   })
   .strict()
