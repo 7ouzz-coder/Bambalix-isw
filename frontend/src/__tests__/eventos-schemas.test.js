@@ -1,5 +1,48 @@
 import { describe, it, expect } from "vitest";
-import { eventoItemSchema, eventosListSchema } from "../schemas/eventos.schema.js";
+import { eventoItemSchema, eventosListSchema, eventoFormSchema } from "../schemas/eventos.schema.js";
+
+describe("Validación de formulario de eventos (eventoFormSchema)", () => {
+  const validForm = {
+    title: "Gala de Fin de Año",
+    clientId: "cli_123",
+    eventTypeId: "1",
+    startsAt: "2026-12-01T18:00",
+    endsAt: "2026-12-01T23:00",
+    attendees: "150",
+    location: "Salón Principal",
+    needs: "Audio e iluminación",
+  };
+
+  it("acepta un formulario válido con lugar obligatorio", () => {
+    const result = eventoFormSchema.safeParse(validForm);
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza si falta el lugar o está vacío/solo espacios", () => {
+    expect(eventoFormSchema.safeParse({ ...validForm, location: "" }).success).toBe(false);
+    expect(eventoFormSchema.safeParse({ ...validForm, location: "   " }).success).toBe(false);
+    expect(eventoFormSchema.safeParse({ ...validForm, location: undefined }).success).toBe(false);
+  });
+
+  it("permite eventoItemSchema con location null para registros históricos", () => {
+    const legacyEvent = {
+      id: 5,
+      title: "Evento Antiguo",
+      startsAt: "2025-01-01T10:00:00.000Z",
+      endsAt: "2025-01-01T12:00:00.000Z",
+      attendees: 20,
+      location: null,
+      needs: null,
+      eventType: { id: 1, name: "Corporativo" },
+      client: { id: "cli_123", name: "Empresa Uno" },
+    };
+    const result = eventoItemSchema.safeParse(legacyEvent);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.location).toBeNull();
+    }
+  });
+});
 
 describe("Validación de eventos recibidos (eventoItemSchema y eventosListSchema)", () => {
   const validEvent = {

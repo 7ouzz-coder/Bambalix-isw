@@ -281,7 +281,14 @@ export function EventoAgenda({ revision, onEventoUpdated }) {
                         </span>
                         <span className="flex items-center gap-1">
                           <MapPin className="h-3.5 w-3.5" />
-                          Espacio: <span className="text-foreground/90">{ev.location || "Sin espacio asignado"}</span>
+                          Espacio:{" "}
+                          {ev.location ? (
+                            <span className="text-foreground/90">{ev.location}</span>
+                          ) : (
+                            <span className="text-amber-600 dark:text-amber-400 font-medium">
+                              Sin espacio asignado (pendiente)
+                            </span>
+                          )}
                         </span>
                         <span>{ev.attendees} asistentes</span>
                       </div>

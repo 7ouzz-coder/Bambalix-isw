@@ -65,7 +65,7 @@ export function EventoForm({ onSaved }) {
         startsAt: start.toISOString(),
         endsAt: end.toISOString(),
         attendees: parseInt(data.attendees, 10),
-        location: data.location?.trim() || undefined,
+        location: data.location.trim(),
         needs: data.needs?.trim() || undefined,
       });
 
@@ -223,12 +223,19 @@ export function EventoForm({ onSaved }) {
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="location">Lugar / Espacio (opcional)</Label>
+            <Label htmlFor="location">Lugar / Espacio *</Label>
             <Input
               id="location"
               placeholder="Ej: Salón Principal"
               {...register("location")}
+              aria-invalid={Boolean(errors.location)}
+              aria-describedby={errors.location ? "location-error" : undefined}
             />
+            {errors.location && (
+              <p className="text-xs text-red-500" id="location-error">
+                {errors.location.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1">
