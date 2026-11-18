@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model EquipmentCategory {
+  id   String @id @default(cuid())
+  name String @unique
+}
+
 model Resource {
   id            String                  @id @default(cuid())
   name          String

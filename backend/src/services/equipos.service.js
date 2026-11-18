@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 function equipmentWhere(filters = {}) {
   const where = { mode: "UNIT" };
   if (filters.name) where.name = { contains: filters.name.replace(/[\\%_]/g, "\\$&"), mode: "insensitive" };
@@ -29,18 +31,43 @@ export function listarPaginaEquipos(db, { page = 1, pageSize = 20, ...filters } 
 }
 
 export async function listarCategoriasEquipos(db) {
-  const items = await db.resource.findMany({
-    where: { mode: "UNIT" },
-    distinct: ["category"],
-    select: { category: true },
-    orderBy: { category: "asc" },
+  const items = await db.equipmentCategory.findMany({ orderBy: { name: "asc" } });
+  return items.map(item => item.name);
+}
+
+export async function crearCategoria(db, name) {
+  const existing = await db.equipmentCategory.findFirst({ where: { name: { equals: name, mode: "insensitive" } } });
+  if (existing) throw equipmentError("La categoría ya existe", 409);
+  try { return await db.equipmentCategory.create({ data: { name } }); }
+  catch (error) {
+    if (error.code === "P2002") throw equipmentError("La categoría ya existe", 409);
+    throw error;
+  }
+}
+
+export async function eliminarCategoria(db, name) {
+  return db.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${name.toLowerCase()}))`;
+    const category = await tx.equipmentCategory.findFirst({ where: { name: { equals: name, mode: "insensitive" } } });
+    if (!category) throw equipmentError("Categoría no encontrada", 404);
+    const count = await tx.resource.count({ where: { category: { equals: category.name, mode: "insensitive" } } });
+    if (count) throw equipmentError("La categoría está en uso por equipos", 409);
+    await tx.equipmentCategory.delete({ where: { id: category.id } });
   });
-  return items.map(item => item.category);
 }
 
 export async function crearEquipo(db, data) {
   try {
-    return await db.resource.create({ data });
+    return await db.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${data.category.toLowerCase()}))`;
+      let category = await tx.equipmentCategory.findFirst({
+        where: { name: { equals: data.category, mode: "insensitive" } },
+      });
+      if (!category) category = await tx.equipmentCategory.create({ data: { name: data.category } });
+      return tx.resource.create({
+        data: { ...data, category: category.name, code: data.code || `EQ-${randomBytes(6).toString("hex").toUpperCase()}` },
+      });
+    });
   } catch (error) {
     if (error.code === "P2002") {
       const conflict = new Error("Ya existe un equipo con ese código");

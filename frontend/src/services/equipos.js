@@ -9,6 +9,7 @@ async function requestEquipment(path, options) {
       signal: options.signal || AbortSignal.timeout(10000),
       cache: "no-store",
     });
+    if (response.status === 204) return null;
     let data;
     try {
       data = await response.json();
@@ -41,6 +42,14 @@ export function equipmentRequest({ filters = {}, ...options } = {}) {
   if (filters.status) params.set("status", filters.status);
   const query = params.toString();
   return requestEquipment(query ? `?${query}` : "", options);
+}
+
+export function createEquipmentCategory(name) {
+  return requestEquipment("/categories", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export function deleteEquipmentCategory(name) {
+  return requestEquipment(`/categories/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
 
 export function getEquipmentCategories(options = {}) {
