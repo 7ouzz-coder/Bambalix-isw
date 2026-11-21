@@ -74,6 +74,7 @@ model EquipmentAssignment {
   createdAt     DateTime  @default(now())
   releasedAt    DateTime?
   releaseReason String?
+  incidents EquipmentIncident[]
   replacementRequests EquipmentReplacement[] @relation("OriginalAssignment")
   replacementOrigin EquipmentReplacement? @relation("ResultingAssignment")
 
@@ -286,4 +287,14 @@ model EquipmentMaintenancePhoto {
   content Bytes
 
   @@id([maintenanceId, stage])
+}
+
+model EquipmentIncident {
+  id String @id @default(cuid())
+  assignmentId String
+  assignment EquipmentAssignment @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  description String
+  createdAt DateTime @default(now())
+
+  @@index([assignmentId, createdAt])
 }

@@ -164,3 +164,13 @@ export function saveMaintenancePhoto(id, maintenanceId, stage, file) {
     method: "POST", headers: { "Content-Type": file.type }, body: file,
   });
 }
+
+export function getEquipmentIncidents(id, assignmentId, signal) {
+  return requestEquipment(`/${id}/assignments/${assignmentId}/incidents`, { signal });
+}
+
+export function createEquipmentIncident(id, assignmentId, description) {
+  return requestEquipment(`/${id}/assignments/${assignmentId}/incidents`, {
+    method: "POST", body: JSON.stringify({ description }),
+  });
+}

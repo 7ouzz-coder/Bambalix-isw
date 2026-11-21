@@ -5,6 +5,7 @@ import { getEquipmentAssignments } from "@/services/equipos";
 import { AssignmentForm } from "./assignment-form";
 import { AssignmentReleaseForm } from "./assignment-release-form";
 import { EquipmentReplacements } from "./equipment-replacements";
+import { EquipmentIncidents } from "./equipment-incidents";
 import { Button } from "@/components/ui/button";
 import { ListPagination } from "@/components/list-pagination";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -17,6 +18,7 @@ function AssignmentPanel({ equipment, busy, onClose }) {
   const [notice, setNotice] = useState("");
   const [release, setRelease] = useState(null);
   const [replacementAssignment, setReplacementAssignment] = useState(null);
+  const [incidentAssignment, setIncidentAssignment] = useState(null);
   const [state, setState] = useState({ loading: true, items: [], pages: 1, total: 0, error: "" });
   useEffect(() => {
     const controller = new AbortController();
@@ -36,6 +38,7 @@ function AssignmentPanel({ equipment, busy, onClose }) {
   }, [equipment.id, page, attempt]);
 
   function saved(message) { setNotice(message); setRelease(null); setPage(1); setAttempt(value => value + 1); }
+  if (incidentAssignment) return <EquipmentIncidents equipmentId={equipment.id} assignmentId={incidentAssignment.id} onBack={() => setIncidentAssignment(null)} />;
   if (replacementAssignment) return <EquipmentReplacements equipment={equipment} assignment={replacementAssignment} busy={busy} onBack={() => { setReplacementAssignment(null); setAttempt(value => value + 1); }} />;
   return <>
     {release ? <AssignmentReleaseForm key={release.id} equipmentId={equipment.id} assignment={release} busy={busy} onSaved={saved} onCancel={() => setRelease(null)} /> : <AssignmentForm equipment={equipment} busy={busy} onSaved={saved} onClose={onClose} />}
@@ -48,6 +51,7 @@ function AssignmentPanel({ equipment, busy, onClose }) {
           <p>{item.event.title} · #{item.event.id}</p>
           <p>Inicio: <time dateTime={item.startsAt}>{new Date(item.startsAt).toLocaleString("es-CL")}</time></p>
           <p>Término: <time dateTime={item.endsAt}>{new Date(item.endsAt).toLocaleString("es-CL")}</time></p>
+          <Button type="button" variant="outline" disabled={Boolean(release)} onClick={() => { if (!busy.current) setIncidentAssignment(item); }}>Incidencias</Button>
           <Button type="button" variant="outline" disabled={Boolean(release)} aria-label={`Reemplazos de ${item.event.title}`} onClick={() => { if (!busy.current) { setReplacementAssignment(item); setNotice(""); } }}>Reemplazos</Button>
           {item.releasedAt ? <><p>Liberada: {new Date(item.releasedAt).toLocaleString("es-CL")}</p><p>{item.releaseReason}</p></> : <>
             <p>Asignación activa</p>
