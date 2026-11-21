@@ -1,3 +1,8 @@
+function estadoActualVehiculo(item) {
+  const { maintenances, assignments, ...vehicle } = item;
+  return { ...vehicle, currentStatus: vehicle.status === "DAMAGED" ? "DAMAGED" : maintenances.length ? "MAINTENANCE" : assignments.length ? "OCCUPIED" : vehicle.status === "OPERATIONAL" ? "AVAILABLE" : "UNREVIEWED" };
+}
+
 function vehicleWhere({ q, type } = {}) {
   const plate = q?.replace(/[\s-]/g, "");
   const where = {};
@@ -22,11 +27,16 @@ export function listarPaginaVehiculos(db, { page = 1, pageSize = 20, ...filters 
     const total = await tx.vehicle.count({ where });
     const pages = Math.max(1, Math.ceil(total / pageSize));
     const currentPage = Math.min(page, pages);
+    const now = new Date();
     const items = await tx.vehicle.findMany({
+      include: {
+        maintenances: { where: { startsAt: { lte: now }, endsAt: { gt: now } }, select: { id: true }, take: 1 },
+        assignments: { where: { startsAt: { lte: now }, endsAt: { gt: now }, releasedAt: null }, select: { id: true }, take: 1 },
+      },
       where, skip: (currentPage - 1) * pageSize, take: pageSize,
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
-    return { items, total, page: currentPage, pageSize, pages };
+    return { items: items.map(estadoActualVehiculo), total, page: currentPage, pageSize, pages };
   }, { isolationLevel: "RepeatableRead" });
 }
 
@@ -79,4 +89,102 @@ export async function editarVehiculo(db, id, { revision, ...data }) {
     }
     throw error;
   }
+}
+
+export async function eliminarVehiculo(db, id) {
+  try {
+    await db.$transaction(async tx => {
+      const rows = await tx.$queryRaw`SELECT id FROM "Vehicle" WHERE id = ${id} FOR UPDATE`;
+      if (!rows.length) {
+        const failure = new Error("Vehículo no encontrado");
+        failure.status = 404;
+        throw failure;
+      }
+      if (await tx.vehicleMaintenance.count({ where: { vehicleId: id } }) ||
+          await tx.vehicleAssignment.count({ where: { vehicleId: id } })) {
+        const failure = new Error("El vehículo tiene registros asociados y no se puede eliminar");
+        failure.status = 409;
+        throw failure;
+      }
+      await tx.vehicle.delete({ where: { id } });
+    });
+  } catch (error) {
+    if (error.code === "P2025") {
+      const failure = new Error("Vehículo no encontrado");
+      failure.status = 404;
+      throw failure;
+    }
+    if (error.code === "P2003") {
+      const failure = new Error("El vehículo tiene registros asociados y no se puede eliminar");
+      failure.status = 409;
+      throw failure;
+    }
+    throw error;
+  }
+}
+
+export async function listarMantencionesVehiculo(db, id) {
+  const vehicle = await db.vehicle.findUnique({ where: { id }, select: { id: true } });
+  if (!vehicle) {
+    const error = new Error("Vehículo no encontrado");
+    error.status = 404;
+    throw error;
+  }
+  return db.vehicleMaintenance.findMany({ where: { vehicleId: id }, orderBy: { startsAt: "desc" }, take: 200 });
+}
+
+export async function crearMantencionVehiculo(db, id, data) {
+  try {
+    return await db.$transaction(async tx => {
+      const rows = await tx.$queryRaw`SELECT id FROM "Vehicle" WHERE id = ${id} FOR UPDATE`;
+      if (!rows.length) { const error = new Error("Vehículo no encontrado"); error.status = 404; throw error; }
+      const startsAt = new Date(data.startsAt);
+      const endsAt = new Date(data.endsAt);
+      const assigned = await tx.vehicleAssignment.findFirst({
+        where: { vehicleId: id, releasedAt: null, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
+      });
+      if (assigned) { const error = new Error("El periodo cruza una asignación activa"); error.status = 409; throw error; }
+      return tx.vehicleMaintenance.create({ data: { vehicleId: id, startsAt, endsAt, reason: data.reason } });
+    });
+  } catch (error) {
+    if (error.code === "P2003") {
+      const failure = new Error("Vehículo no encontrado");
+      failure.status = 404;
+      throw failure;
+    }
+    throw error;
+  }
+}
+
+export async function asignarVehiculo(db, vehicleId, data) {
+  return db.$transaction(async tx => {
+    const rows = await tx.$queryRaw`SELECT id FROM "Vehicle" WHERE id = ${vehicleId} FOR UPDATE`;
+    if (!rows.length) { const error = new Error("Vehículo no encontrado"); error.status = 404; throw error; }
+    const events = await tx.$queryRaw`SELECT id FROM events WHERE id = ${data.eventId} FOR SHARE`;
+    if (!events.length) { const error = new Error("Evento no encontrado"); error.status = 404; throw error; }
+    const event = await tx.event.findUniqueOrThrow({ where: { id: data.eventId } });
+    const vehicle = await tx.vehicle.findUniqueOrThrow({ where: { id: vehicleId }, select: { status: true } });
+    if (vehicle.status !== "OPERATIONAL") { const error = new Error("El vehículo no está operativo"); error.status = 409; throw error; }
+    const startsAt = new Date(data.startsAt);
+    const endsAt = new Date(data.endsAt);
+    if (startsAt > event.startsAt || endsAt < event.endsAt) {
+      const error = new Error("El período debe cubrir todo el evento"); error.status = 409; throw error;
+    }
+    const overlap = { startsAt: { lt: endsAt }, endsAt: { gt: startsAt } };
+    const maintenance = await tx.vehicleMaintenance.findFirst({ where: { vehicleId, ...overlap } });
+    const assignment = await tx.vehicleAssignment.findFirst({ where: { vehicleId, releasedAt: null, ...overlap } });
+    if (maintenance || assignment) {
+      const error = new Error("El vehículo no está disponible en ese período"); error.status = 409; throw error;
+    }
+    return tx.vehicleAssignment.create({ data: { vehicleId, eventId: event.id, startsAt, endsAt } });
+  });
+}
+
+export async function listarAsignacionesVehiculo(db, vehicleId) {
+  const vehicle = await db.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true } });
+  if (!vehicle) { const error = new Error("Vehículo no encontrado"); error.status = 404; throw error; }
+  return db.vehicleAssignment.findMany({
+    where: { vehicleId }, orderBy: { startsAt: "desc" }, take: 200,
+    include: { event: { select: { id: true, title: true } } },
+  });
 }
