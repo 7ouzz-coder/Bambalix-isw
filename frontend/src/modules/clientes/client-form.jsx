@@ -215,7 +215,7 @@ export function ClientForm({ clientToEdit = null, onSaved, trigger = null, open:
             <Input
               id="client-rut"
               type="text"
-              placeholder="Ej. 12.345.678-9"
+              placeholder="Ej. 12.345.678-5"
               maxLength={20}
               disabled={isSubmitting}
               aria-invalid={Boolean(errors.rut)}
