@@ -1,3 +1,4 @@
+import { mountEquipmentEvidence } from "./evidencia-equipos.routes.js";
 import { Router } from "express";
 import { z } from "zod";
 import { reemplazosRoutes } from "./reemplazos.routes.js";
@@ -11,6 +12,7 @@ import { validarEquipo, validarFiltrosEquipos, validarIdEquipo, validarEstadoEqu
 export function equipmentRoutes(db) {
   const router = Router();
   const controller = equiposController(db);
+  mountEquipmentEvidence(router, db);
   const maintenance = mantencionesController(db);
   const assignments = asignacionesController(db);
   router.use("/:id/assignments/:assignmentId/replacements", validarIdEquipo, validarIdAsignacion, reemplazosRoutes(db));

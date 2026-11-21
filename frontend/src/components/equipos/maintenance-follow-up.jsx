@@ -6,6 +6,7 @@ import { maintenanceFollowUpSchema } from "@/schemas/historial-recursos.schema";
 import { Button } from "@/components/ui/button";
 import { ListPagination } from "@/components/list-pagination";
 import { MaintenanceActionForm } from "./maintenance-action-form";
+import { MaintenancePhotos } from "./maintenance-photos";
 
 export function MaintenanceFollowUp({ equipmentId, maintenanceId, busy, onBack, onChanged }) {
   const id = useId();
@@ -51,6 +52,7 @@ export function MaintenanceFollowUp({ equipmentId, maintenanceId, busy, onBack, 
         <Button variant="outline" onClick={() => { setNotice(""); setAction("note"); }}>Añadir observación</Button>
         <Button onClick={() => { setNotice(""); setAction("close"); }}>Cerrar mantención</Button>
       </div>}
+      <MaintenancePhotos equipmentId={equipmentId} maintenanceId={maintenanceId} />
       <h4>Bitácora de observaciones</h4>
       {state.items.length ? <ol>{state.items.map(note => <li key={note.id}>
         <p><time dateTime={note.createdAt}>{new Date(note.createdAt).toLocaleString("es-CL")}</time></p><p>{note.content}</p>
