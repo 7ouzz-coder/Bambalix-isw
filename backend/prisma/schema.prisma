@@ -135,8 +135,35 @@ model Vehicle {
   plate String @unique
   revision Int @default(0)
   createdAt DateTime @default(now())
+  maintenances VehicleMaintenance[]
+  assignments VehicleAssignment[]
 
   @@index([name])
+}
+
+model VehicleMaintenance {
+  id String @id @default(cuid())
+  vehicleId String
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  startsAt DateTime @db.Timestamptz(3)
+  endsAt DateTime @db.Timestamptz(3)
+  reason String
+  createdAt DateTime @default(now())
+  @@index([vehicleId, startsAt, endsAt])
+}
+
+model VehicleAssignment {
+  id String @id @default(cuid())
+  vehicleId String
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  eventId Int
+  event Event @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  startsAt DateTime @db.Timestamptz(3)
+  endsAt DateTime @db.Timestamptz(3)
+  releasedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now())
+  @@index([vehicleId, releasedAt, startsAt])
+  @@index([eventId])
 }
 
 model Client {
@@ -168,6 +195,7 @@ model EventType {
 
 model Event {
   equipmentAssignments EquipmentAssignment[]
+  vehicleAssignments VehicleAssignment[]
   id          Int       @id @default(autoincrement())
   title       String
   clientId    String    @map("client_id")
