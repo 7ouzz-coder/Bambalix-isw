@@ -68,3 +68,10 @@ export async function approveQuote(id) {
     method: "POST",
   });
 }
+
+export async function getQuoteResources(eventId, options = {}) {
+  const response = await sessionFetch(`${API_BASE}/quote-resources/${encodeURIComponent(eventId)}`, options);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || "No se pudo consultar la disponibilidad");
+  return data;
+}

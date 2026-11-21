@@ -2,6 +2,8 @@ import { z } from "zod";
 
 const quoteItemSchema = z
   .object({
+    equipmentId: z.string().trim().min(1).max(100).nullable().optional(),
+    vehicleId: z.string().trim().min(1).max(100).nullable().optional(),
     concept: z
       .string({ required_error: "El concepto es obligatorio" })
       .trim()
@@ -18,18 +20,18 @@ const quoteItemSchema = z
       .max(999999999.99, "El precio unitario excede el límite permitido de la base de datos")
       .refine((value) => /^\d+(\.\d{1,2})?$/.test(String(value)), "El precio admite hasta dos decimales"),
   })
-  .strict();
+  .strict().refine(item => !(item.equipmentId && item.vehicleId), { message: "Selecciona un solo recurso por ítem" });
 
 export const createQuoteSchema = z
   .object({
     clientId: z
       .string({ required_error: "El cliente es obligatorio" })
       .trim()
-      .min(1, "El cliente es obligatorio"),
+      .min(1, "El cliente es obligatorio").max(100),
     eventId: z
       .number({ required_error: "El evento es obligatorio" })
       .int("El identificador del evento debe ser un número entero")
-      .positive("El identificador del evento debe ser positivo"),
+      .positive("El identificador del evento debe ser positivo").max(2147483647),
     notes: z
       .string()
       .trim()

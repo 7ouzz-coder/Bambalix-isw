@@ -1,6 +1,7 @@
 import { apiBase as API_BASE } from "./api-url.js";
 import { sessionFetch } from "./sesion.js";
 import { clientFormSchema } from "../schemas/clientes.js";
+import { rutValido, celularValido } from "../schemas/identidad-cl.js";
 export { clientFormSchema };
 
 
@@ -69,8 +70,10 @@ export function validateClient({
     errors.email = "Escribe un correo válido de hasta 254 caracteres";
   if (!rut.trim()) errors.rut = "El RUT es obligatorio";
   else if (rut.trim().length > 20) errors.rut = "El RUT admite hasta 20 caracteres";
+  else if (!rutValido(rut)) errors.rut = "Ingresa un RUT válido";
   if (!phone.trim()) errors.phone = "El teléfono es obligatorio";
   else if (phone.trim().length > 40) errors.phone = "El teléfono admite hasta 40 caracteres";
+  else if (!celularValido(phone)) errors.phone = "Ingresa un celular chileno válido";
   if (address && address.trim().length > 240) errors.address = "La dirección admite hasta 240 caracteres";
   if (clientType === "empresa" && (!contactName || contactName.trim().length < 2)) {
     errors.contactName = "Para empresas es obligatorio indicar el encargado de contacto";

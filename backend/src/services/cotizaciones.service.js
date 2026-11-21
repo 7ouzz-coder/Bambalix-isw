@@ -1,4 +1,22 @@
 import { Prisma } from "@prisma/client";
+import { listarRecursosCotizacion } from "./disponibilidad-cotizacion.service.js";
+
+async function validarRecursos(tx, data) {
+  const equipmentIds = [...new Set(data.items.map(item => item.equipmentId).filter(Boolean))].sort();
+  const vehicleIds = [...new Set(data.items.map(item => item.vehicleId).filter(Boolean))].sort();
+  if (equipmentIds.length + vehicleIds.length !== data.items.filter(item => item.equipmentId || item.vehicleId).length) {
+    const error = new Error("No repitas un recurso en la cotización"); error.statusCode = 400; throw error;
+  }
+  if (!equipmentIds.length && !vehicleIds.length) return;
+  for (const id of equipmentIds) await tx.$queryRaw`SELECT id FROM "Resource" WHERE id = ${id} FOR UPDATE`;
+  for (const id of vehicleIds) await tx.$queryRaw`SELECT id FROM "Vehicle" WHERE id = ${id} FOR UPDATE`;
+  await tx.$queryRaw`SELECT id FROM events WHERE id = ${data.eventId} FOR SHARE`;
+  const available = await listarRecursosCotizacion(tx, data.eventId);
+  if (equipmentIds.some(id => !available.equipos.some(item => item.id === id)) ||
+      vehicleIds.some(id => !available.vehiculos.some(item => item.id === id))) {
+    const error = new Error("Uno de los recursos ya no está disponible para el evento"); error.statusCode = 409; throw error;
+  }
+}
 
 async function prepararCotizacion(db, data) {
   // 1. Validar existencia del cliente
@@ -37,6 +55,8 @@ async function prepararCotizacion(db, data) {
 
     return {
       concept: item.concept.trim(),
+      equipmentId: item.equipmentId || null,
+      vehicleId: item.vehicleId || null,
       quantity,
       unitPrice,
       subtotal,
@@ -99,8 +119,9 @@ export function quoteService(db) {
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
         const code = `COT-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}-${randomSuffix}`;
         try {
-          return await db.$transaction(async (tx) =>
-            tx.quote.create({
+          return await db.$transaction(async (tx) => {
+            await validarRecursos(tx, data);
+            return tx.quote.create({
               data: {
                 code,
                 clientId: data.clientId,
@@ -117,8 +138,8 @@ export function quoteService(db) {
                 event: { select: { id: true, title: true } },
                 items: true,
               },
-            }),
-          );
+            });
+          });
         } catch (error) {
           const duplicateCode =
             error.code === "P2002" &&
@@ -148,6 +169,7 @@ export function quoteService(db) {
         }
 
         const { totalCalculado, itemsPreparados } = await prepararCotizacion(tx, data);
+        await validarRecursos(tx, data);
         const updated = await tx.quote.updateMany({
           where: { id, status: "BORRADOR" },
           data: {
