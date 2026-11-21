@@ -8,14 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { equipmentRequest, getEquipmentCategories } from "@/services/equipos";
+import { equipmentRequest, getEquipmentCategories, createEquipmentCategory, deleteEquipmentCategory } from "@/services/equipos";
 import { equipmentCreateSchema } from "@/schemas/equipos.schema";
 
-const blank = { name: "", category: "", code: "" };
+const blank = { name: "", category: "" };
 const fields = [
   { key: "name", label: "Nombre del equipo", placeholder: "Ej. Consola de sonido", max: 120 },
   { key: "category", label: "Categoría", placeholder: "Ej. Sonido", max: 80 },
-  { key: "code", label: "Código interno", placeholder: "Ej. SON-001", max: 60 },
 ];
 
 export function EquipmentForm({ onSaved }) {
@@ -23,6 +22,8 @@ export function EquipmentForm({ onSaved }) {
   const [error, setError] = useState("");
   const [categories, setCategories] = useState([]);
   const [categoryError, setCategoryError] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [addingCategory, setAddingCategory] = useState(false);
   const [focusField, setFocusField] = useState("");
   const busy = useRef(false);
   const formId = useId();
@@ -56,6 +57,38 @@ export function EquipmentForm({ onSaved }) {
     setOpen(next);
     reset(blank); setError("");
     setFocusField("");
+  }
+
+  async function addCategory() {
+    const name = newCategory.trim();
+    if (name.length < 2 || name.length > 80) {
+      setCategoryError("Escribe una categoría de entre 2 y 80 caracteres.");
+      return;
+    }
+    setAddingCategory(true);
+    setCategoryError("");
+    try {
+      const created = await createEquipmentCategory(name);
+      setCategories(previous => [...previous, created.name].sort((a, b) => a.localeCompare(b)));
+      setNewCategory("");
+    } catch (failure) {
+      setCategoryError(failure.message);
+    } finally {
+      setAddingCategory(false);
+    }
+  }
+
+  async function removeCategory(name) {
+    setAddingCategory(true);
+    setCategoryError("");
+    try {
+      await deleteEquipmentCategory(name);
+      setCategories(previous => previous.filter(category => category !== name));
+    } catch (failure) {
+      setCategoryError(failure.message);
+    } finally {
+      setAddingCategory(false);
+    }
   }
 
   async function submit(data) {
@@ -93,8 +126,24 @@ export function EquipmentForm({ onSaved }) {
           {errors[field.key] ? <p className="field-error" id={`${formId}-${field.key}-error`}>{errors[field.key].message}</p> : null}
         </div>)}
         <datalist id={`${formId}-categories`}>{categories.map(category => <option key={category} value={category} />)}</datalist>
+        <div className="field">
+          <Label htmlFor={`${formId}-new-category`}>Nueva categoría</Label>
+          <Input id={`${formId}-new-category`} value={newCategory} maxLength={80}
+            onChange={event => setNewCategory(event.target.value)} disabled={addingCategory} />
+          <Button type="button" variant="outline" disabled={addingCategory} onClick={addCategory}>
+            {addingCategory ? "Agregando…" : "Agregar categoría"}
+          </Button>
+        </div>
+        {categories.length > 0 && <div className="field">
+          <Label>Categorías registradas</Label>
+          {categories.map(category => <div key={category}>
+            <span>{category}</span>{" "}
+            <Button type="button" variant="outline" disabled={addingCategory} onClick={() => removeCategory(category)}
+              aria-label={`Eliminar categoría ${category}`}>Eliminar</Button>
+          </div>)}
+        </div>}
         {categoryError ? <p className="field-error" role="status">{categoryError}</p> : null}
-        <p className="form-note">Cada registro corresponde a un equipo individual y debe tener un código único.</p>
+        <p className="form-note">Cada equipo recibe un código interno al guardarlo.</p>
         {error ? <p role="alert" className="error-message">{error}</p> : null}
         <div className="form-actions"><Button type="button" variant="outline" disabled={saving} onClick={() => changeOpen(false)}>Cancelar</Button>
           <Button type="submit" disabled={saving}>{saving ? <><LoaderCircle className="spin" aria-hidden="true" />Guardando…</> : "Guardar equipo"}</Button></div>

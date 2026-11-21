@@ -14,6 +14,25 @@ export function equiposController(db) {
     res.json(await equiposService.listarPaginaEquipos(db, res.locals.equipmentPage));
   }
 
+  async function crearCategoria(req, res, next) {
+    try {
+      res.status(201).json(await equiposService.crearCategoria(db, req.body.name));
+    } catch (error) {
+      if (error.status === 409) return res.status(409).json({ message: error.message });
+      next(error);
+    }
+  }
+
+  async function eliminarCategoria(req, res, next) {
+    try {
+      await equiposService.eliminarCategoria(db, req.params.name.trim());
+      res.status(204).end();
+    } catch (error) {
+      if (error.status === 404 || error.status === 409) return res.status(error.status).json({ message: error.message });
+      next(error);
+    }
+  }
+
   async function crearEquipo(req, res, next) {
     try {
       const equipment = await equiposService.crearEquipo(db, req.body);
@@ -64,5 +83,5 @@ export function equiposController(db) {
     }
   }
 
-  return { listarEquipos, listarPaginaEquipos, listarCategoriasEquipos, crearEquipo, cambiarEstadoEquipo, listarHistorialEquipo, listarPaginaHistorialEquipo, editarEquipo };
+  return { crearCategoria, eliminarCategoria, listarEquipos, listarPaginaEquipos, listarCategoriasEquipos, crearEquipo, cambiarEstadoEquipo, listarHistorialEquipo, listarPaginaHistorialEquipo, editarEquipo };
 }
