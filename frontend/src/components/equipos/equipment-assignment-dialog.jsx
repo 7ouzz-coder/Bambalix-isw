@@ -11,7 +11,7 @@ import { ListPagination } from "@/components/list-pagination";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import styles from "./equipment-replacements.module.css";
 
-function AssignmentPanel({ equipment, busy, onClose }) {
+function AssignmentPanel({ equipment, busy, onClose, onChanged }) {
   const id = useId();
   const [page, setPage] = useState(1);
   const [attempt, setAttempt] = useState(0);
@@ -37,7 +37,7 @@ function AssignmentPanel({ equipment, busy, onClose }) {
     return () => controller.abort();
   }, [equipment.id, page, attempt]);
 
-  function saved(message) { setNotice(message); setRelease(null); setPage(1); setAttempt(value => value + 1); }
+  function saved(message) { onChanged?.(); setNotice(message); setRelease(null); setPage(1); setAttempt(value => value + 1); }
   if (incidentAssignment) return <EquipmentIncidents equipmentId={equipment.id} assignmentId={incidentAssignment.id} onBack={() => setIncidentAssignment(null)} />;
   if (replacementAssignment) return <EquipmentReplacements equipment={equipment} assignment={replacementAssignment} busy={busy} onBack={() => { setReplacementAssignment(null); setAttempt(value => value + 1); }} />;
   return <>
@@ -66,14 +66,14 @@ function AssignmentPanel({ equipment, busy, onClose }) {
   </>;
 }
 
-export function EquipmentAssignmentDialog({ equipment }) {
+export function EquipmentAssignmentDialog({ equipment, onChanged }) {
   const [open, setOpen] = useState(false);
   const busy = useRef(false);
   return <Dialog open={open} onOpenChange={value => { if (!busy.current) setOpen(value); }}>
     <DialogTrigger asChild><Button variant="outline" aria-label={`Asignaciones de ${equipment.name}`}>Asignaciones</Button></DialogTrigger>
     <DialogContent className={`equipment-dialog ${styles.dialog}`} showCloseButton={false} onEscapeKeyDown={event => { if (busy.current) event.preventDefault(); }} onPointerDownOutside={event => { if (busy.current) event.preventDefault(); }}>
       <DialogHeader><DialogTitle>Asignaciones del equipo</DialogTitle><DialogDescription>{equipment.name} · {equipment.code}</DialogDescription></DialogHeader>
-      {open && <AssignmentPanel equipment={equipment} busy={busy} onClose={() => setOpen(false)} />}
+      {open && <AssignmentPanel equipment={equipment} busy={busy} onClose={() => setOpen(false)} onChanged={onChanged} />}
     </DialogContent>
   </Dialog>;
 }

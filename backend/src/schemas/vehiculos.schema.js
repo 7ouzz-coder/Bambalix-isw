@@ -3,6 +3,7 @@ import { z } from "zod";
 export const vehicleSchema = z.object({
   name: z.string().trim().min(2).max(120),
   type: z.string().trim().min(2).max(80),
+  status: z.enum(["UNREVIEWED", "OPERATIONAL", "DAMAGED"]).optional(),
   plate: z.string().trim().min(2).max(20).transform(value => value.toUpperCase().replace(/[.\s-]/g, ""))
     .pipe(z.string().regex(/^(?:[A-Z]{4}\d{2}|[A-Z]{2}\d{4}|[A-Z]{2}\d{3}|[A-Z]{3}\d{2})$/, "Usa una patente chilena, por ejemplo ABCD12, AB1234 o AB123")),
 }).strict();

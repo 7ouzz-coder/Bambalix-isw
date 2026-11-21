@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Layers3 } from "lucide-react";
+import { CurrentStatus } from "@/components/recursos/current-status";
 import { WorkspaceNavigation } from "@/components/workspace-navigation";
 import { VehicleAssignmentDialog } from "@/components/vehiculos/vehicle-assignment-dialog";
 import { VehicleMaintenanceDialog } from "@/components/vehiculos/vehicle-maintenance-dialog";
@@ -48,6 +49,20 @@ export default function VehiclesPage() {
       });
     return () => controller.abort();
   }, [revision]);
+  async function refreshCurrentStatus() {
+    try {
+      const result = await listVehiclePage({ ...filters, page });
+      if (Array.isArray(result?.items)) setState(previous => ({ ...previous, items: result.items }));
+    } catch {
+      setState(previous => ({ ...previous, items: previous.items.map(item => ({ ...item, currentStatus: "UNKNOWN" })) }));
+      setNotice("No se pudo actualizar el estado. Usa Actualizar para volver a consultar.");
+    }
+  }
+  useEffect(() => {
+    const timer = setInterval(refreshCurrentStatus, 30000);
+    return () => clearInterval(timer);
+  }, [filters, page]);
+
   async function removeVehicle(vehicle) {
     if (!window.confirm(`¿Eliminar el vehículo «${vehicle.name}»?`)) return;
     try {
@@ -79,19 +94,19 @@ export default function VehiclesPage() {
           </form>
           {state.loading ? <p className="list-state" role="status">Cargando vehículos…</p> : state.error ? <div className="list-state"><p className="error-message" role="alert">{state.error}</p><Button onClick={() => setRevision(previous => previous + 1)}>Reintentar</Button></div> : !state.items.length ? <p className="list-state">{filters.q || filters.type ? "No se encontraron vehículos con esos filtros." : "Aún no hay vehículos registrados."}</p> :
             <Table>
-              <TableHeader><TableRow><TableHead>Vehículo</TableHead><TableHead>Tipo</TableHead><TableHead>Patente</TableHead><TableHead>Acciones</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Vehículo</TableHead><TableHead>Tipo</TableHead><TableHead>Patente</TableHead><TableHead>Estado actual</TableHead><TableHead>Acciones</TableHead></TableRow></TableHeader>
               <TableBody>{state.items.map(vehicle =>
                 <TableRow key={vehicle.id}>
-                  <TableCell>{vehicle.name}</TableCell><TableCell>{vehicle.type}</TableCell><TableCell>{vehicle.plate}</TableCell>
+                  <TableCell>{vehicle.name}</TableCell><TableCell>{vehicle.type}</TableCell><TableCell>{vehicle.plate}</TableCell><TableCell><CurrentStatus status={vehicle.currentStatus} /></TableCell>
                   <TableCell><details className="equipment-actions-menu"><summary aria-label={`Acciones de ${vehicle.name}`}>Acciones <span aria-hidden="true">⌄</span></summary><div className="equipment-row-actions"><VehicleForm vehicle={vehicle} onSaved={saved => {
                     setNotice(`Ficha de «${saved.name}» actualizada correctamente.`);
                     setRevision(previous => previous + 1);
-                  }} /><VehicleMaintenanceDialog vehicle={vehicle} /><VehicleAssignmentDialog vehicle={vehicle} /><Button variant="outline" onClick={() => removeVehicle(vehicle)} aria-label={`Eliminar ${vehicle.name}`}>Eliminar</Button></div></details></TableCell>
+                  }} /><VehicleMaintenanceDialog vehicle={vehicle} onChanged={refreshCurrentStatus} /><VehicleAssignmentDialog vehicle={vehicle} onChanged={refreshCurrentStatus} /><Button variant="outline" onClick={() => removeVehicle(vehicle)} aria-label={`Eliminar ${vehicle.name}`}>Eliminar</Button></div></details></TableCell>
                 </TableRow>
               )}</TableBody>
             </Table>}
           {!state.error && <ListPagination page={page} pages={state.pages} disabled={state.loading} label="Páginas de vehículos" onChange={next => { setPage(next); setNotice(""); }} />}
-          <div className="ledger-foot">Consulta las asignaciones y mantenciones de cada vehículo.</div>
+          <div className="ledger-foot">El estado mostrado corresponde al momento de la consulta.</div>
         </section>
       </section><footer className="page-footer"><span>BAMBALIX</span></footer>
     </main>
