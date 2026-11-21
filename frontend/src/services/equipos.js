@@ -151,3 +151,16 @@ export function decideEquipmentReplacement(id, assignmentId, replacementId, data
     method: "PATCH", body: JSON.stringify(data),
   });
 }
+
+export async function getMaintenancePhoto(id, maintenanceId, stage, signal) {
+  const response = await sessionFetch(`${API_URL}/operations/resources/${id}/maintenances/${maintenanceId}/photos/${stage}`, { signal, cache: "no-store" });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("No se pudo consultar la foto");
+  return response.blob();
+}
+
+export function saveMaintenancePhoto(id, maintenanceId, stage, file) {
+  return requestEquipment(`/${id}/maintenances/${maintenanceId}/photos/${stage}`, {
+    method: "POST", headers: { "Content-Type": file.type }, body: file,
+  });
+}

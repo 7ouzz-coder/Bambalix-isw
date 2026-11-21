@@ -47,6 +47,7 @@ model EquipmentMaintenance {
   createdAt  DateTime @default(now())
   closedAt   DateTime? @db.Timestamptz(3)
   closingNotes String?
+  photos     EquipmentMaintenancePhoto[]
   notes      EquipmentMaintenanceNote[]
 
   @@index([resourceId, startsAt, id])
@@ -275,4 +276,14 @@ model PublicEventRequest {
   message String
   createdAt DateTime @default(now()) @map("created_at")
   @@map("public_event_requests")
+}
+
+model EquipmentMaintenancePhoto {
+  maintenanceId String
+  maintenance EquipmentMaintenance @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  stage String
+  mime String
+  content Bytes
+
+  @@id([maintenanceId, stage])
 }
