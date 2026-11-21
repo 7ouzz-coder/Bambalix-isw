@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const paymentFormSchema = z.object({
-  quoteId: z.string().min(1, "Debes seleccionar una cotización"),
+  quoteId: z.string().trim().min(1, "Debes seleccionar una cotización").max(100),
   method: z.enum(["EFECTIVO", "TRANSFERENCIA"], {
     errorMap: () => ({ message: "Selecciona un método válido: Efectivo o Transferencia" }),
   }),

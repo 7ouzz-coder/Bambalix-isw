@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rutValido, celularValido } from "./identidad-cl.js";
 
 export const clientFormSchema = z
   .object({
@@ -17,12 +18,14 @@ export const clientFormSchema = z
       .string()
       .trim()
       .min(1, "El RUT es obligatorio")
-      .max(20, "El RUT admite hasta 20 caracteres"),
+      .max(20, "El RUT admite hasta 20 caracteres")
+      .refine(rutValido, "Ingresa un RUT válido"),
     phone: z
       .string()
       .trim()
       .min(1, "El teléfono es obligatorio")
-      .max(40, "El teléfono admite hasta 40 caracteres"),
+      .max(40, "El teléfono admite hasta 40 caracteres")
+      .refine(celularValido, "Ingresa un celular chileno que comience con +569 o 9"),
     address: z
       .string()
       .trim()
@@ -40,6 +43,7 @@ export const clientFormSchema = z
       .string()
       .trim()
       .max(40, "El teléfono de contacto admite hasta 40 caracteres")
+      .refine(value => !value || celularValido(value), "Ingresa un celular de contacto chileno válido")
       .optional()
       .or(z.literal("")),
     contactEmail: z

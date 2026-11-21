@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rutValido, celularValido } from "./identidad-cl.js";
 
 const createOptionalText = (max) =>
   z
@@ -9,8 +10,8 @@ const createOptionalText = (max) =>
     .nullable()
     .transform((val) => (val && val.trim() !== "" ? val.trim() : null));
 
-const requiredRut = z.string({ error: "El RUT es obligatorio" }).trim().min(1, "El RUT es obligatorio").max(20);
-const requiredPhone = z.string({ error: "El teléfono es obligatorio" }).trim().min(1, "El teléfono es obligatorio").max(40);
+const requiredRut = z.string({ error: "El RUT es obligatorio" }).trim().min(1, "El RUT es obligatorio").max(20).refine(rutValido, "Ingresa un RUT válido");
+const requiredPhone = z.string({ error: "El teléfono es obligatorio" }).trim().min(1, "El teléfono es obligatorio").max(40).refine(celularValido, "Ingresa un celular chileno que comience con +569 o 9");
 
 export const createClientSchema = z
   .object({
@@ -29,12 +30,12 @@ export const createClientSchema = z
     address: createOptionalText(240),
     clientType: z.enum(["persona", "empresa"]).default("persona"),
     contactName: createOptionalText(120),
-    contactPhone: createOptionalText(40),
+    contactPhone: createOptionalText(40).refine(value => value === null || celularValido(value), "Ingresa un celular de contacto chileno válido"),
     contactEmail: z
       .string()
       .trim()
       .max(254, "El correo de contacto no puede superar 254 caracteres")
-      .email("Ingresa un correo de contacto válido")
+      .refine(value => !value || z.email().safeParse(value).success, "Ingresa un correo de contacto válido")
       .optional()
       .nullable()
       .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
@@ -87,10 +88,10 @@ export const updateClientSchema = z
     address: patchOptionalNullableText(240),
     clientType: z.enum(["persona", "empresa"]).optional(),
     contactName: patchOptionalNullableText(120),
-    contactPhone: patchOptionalNullableText(40),
+    contactPhone: patchOptionalNullableText(40).refine(value => value == null || celularValido(value), "Ingresa un celular de contacto chileno válido"),
     contactEmail: z
       .union([
-        z.string().trim().max(254, "El correo no puede superar 254 caracteres").email("Ingresa un correo válido"),
+        z.string().trim().max(254, "El correo no puede superar 254 caracteres").refine(value => !value || z.email().safeParse(value).success, "Ingresa un correo válido"),
         z.null(),
       ])
       .optional()

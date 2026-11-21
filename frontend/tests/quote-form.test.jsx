@@ -24,6 +24,7 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
   let root;
 
   beforeEach(() => {
+    vi.spyOn(cotizacionesService, "getQuoteResources").mockResolvedValue({ equipos: [], vehiculos: [] });
     container = document.createElement("div");
     document.body.appendChild(container);
     root = ReactDOMClient.createRoot(container);
@@ -32,6 +33,7 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
   afterEach(async () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
     if (root) {
       await act(async () => {
         root.unmount();
@@ -95,6 +97,63 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
       items: [{ concept: "Audio", quantity: 2, unitPrice: 16000 }],
     });
     expect(onSaved).toHaveBeenCalledWith(quote);
+  });
+
+  it("muestra el recurso guardado como no disponible sin borrarlo al editar", async () => {
+    vi.spyOn(clientesService, "clientRequest").mockResolvedValue(validClients);
+    vi.spyOn(eventosService, "getEventos").mockResolvedValue(validEvents);
+    vi.spyOn(cotizacionesService, "updateQuote").mockRejectedValue(new Error("Uno de los recursos ya no está disponible"));
+    const quote = {
+      id: "quote_1", clientId: "cli_1", eventId: 101, notes: "",
+      items: [{ concept: "Traslado", quantity: 1, unitPrice: "1000", vehicleId: "vehiculo_1" }],
+    };
+    await openDialog(vi.fn(), quote);
+    const select = document.querySelector("#quote-resource-0");
+    expect(select.value).toBe("vehicle:vehiculo_1");
+    expect(select.selectedOptions[0].textContent).toContain("ya no disponible");
+    await act(async () => {
+      document.querySelector("form.equipment-form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(cotizacionesService.updateQuote).not.toHaveBeenCalled();
+    expect(document.querySelector("button[type=submit]").disabled).toBe(true);
+    expect(document.querySelector("[role='alert']").textContent).toContain("ya no está disponible");
+  });
+
+  it("actualiza la disponibilidad sin perder el recurso seleccionado ni los datos", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(clientesService, "clientRequest").mockResolvedValue(validClients);
+    vi.spyOn(eventosService, "getEventos").mockResolvedValue(validEvents);
+    vi.mocked(cotizacionesService.getQuoteResources)
+      .mockResolvedValueOnce({ equipos: [], vehiculos: [{ id: "vehiculo_1", name: "Furgón", plate: "AB1234" }] })
+      .mockResolvedValue({ equipos: [], vehiculos: [] });
+    const quote = { id: "quote_1", clientId: "cli_1", eventId: 101, notes: "Conservar",
+      items: [{ concept: "Traslado", quantity: 1, unitPrice: "1000", vehicleId: "vehiculo_1" }] };
+    await openDialog(vi.fn(), quote);
+    const select = document.querySelector("#quote-resource-0");
+    expect(select.selectedOptions[0].textContent).toContain("Furgón");
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000); });
+    expect(select.value).toBe("vehicle:vehiculo_1");
+    expect(select.selectedOptions[0].textContent).toContain("ya no disponible");
+    expect(document.querySelector("#quote-notes").value).toBe("Conservar");
+    expect(document.querySelector("button[type=submit]").disabled).toBe(true);
+    expect(document.querySelector("[role=alert]").textContent).toContain("ya no está disponible");
+  });
+
+  it("bloquea el guardado si falla la consulta y se recupera al reintentar", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(clientesService, "clientRequest").mockResolvedValue(validClients);
+    vi.spyOn(eventosService, "getEventos").mockResolvedValue(validEvents);
+    vi.mocked(cotizacionesService.getQuoteResources)
+      .mockRejectedValueOnce(new Error("Sin conexión"))
+      .mockResolvedValue({ equipos: [], vehiculos: [] });
+    const quote = { id: "quote_1", clientId: "cli_1", eventId: 101, notes: "",
+      items: [{ concept: "Servicio", quantity: 1, unitPrice: "1000" }] };
+    await openDialog(vi.fn(), quote);
+    expect(document.querySelector("[role=alert]").textContent).toContain("No se pudo actualizar");
+    expect(document.querySelector("button[type=submit]").disabled).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000); });
+    expect(document.querySelector("[role=alert]")).toBeNull();
+    expect(document.querySelector("button[type=submit]").disabled).toBe(false);
   });
 
   it("Guardar está deshabilitado durante la carga y no se llama a createQuote", async () => {
