@@ -14,7 +14,7 @@ import { getEventos } from "../src/services/eventos";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Servicio y validaciones de Cotizaciones en frontend", () => {
-  it.each(["0.001", "1.005", "-1"])(
+  it.each(["0.001", "1.005", "-1", ""])(
     "rechaza el precio inválido %s",
     (unitPrice) => {
       expect(
