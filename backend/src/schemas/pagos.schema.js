@@ -10,7 +10,7 @@ export const createPaymentSchema = z
     quoteId: z
       .string({ required_error: "La cotización es obligatoria" })
       .trim()
-      .min(1, "La cotización es obligatoria"),
+      .min(1, "La cotización es obligatoria").max(100),
     method: z
       .string({ required_error: "El método de pago es obligatorio" })
       .trim()
