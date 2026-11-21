@@ -1,3 +1,8 @@
+function estadoActualVehiculo(item) {
+  const { maintenances, assignments, ...vehicle } = item;
+  return { ...vehicle, currentStatus: vehicle.status === "DAMAGED" ? "DAMAGED" : maintenances.length ? "MAINTENANCE" : assignments.length ? "OCCUPIED" : vehicle.status === "OPERATIONAL" ? "AVAILABLE" : "UNREVIEWED" };
+}
+
 function vehicleWhere({ q, type } = {}) {
   const plate = q?.replace(/[\s-]/g, "");
   const where = {};
@@ -22,11 +27,16 @@ export function listarPaginaVehiculos(db, { page = 1, pageSize = 20, ...filters 
     const total = await tx.vehicle.count({ where });
     const pages = Math.max(1, Math.ceil(total / pageSize));
     const currentPage = Math.min(page, pages);
+    const now = new Date();
     const items = await tx.vehicle.findMany({
+      include: {
+        maintenances: { where: { startsAt: { lte: now }, endsAt: { gt: now } }, select: { id: true }, take: 1 },
+        assignments: { where: { startsAt: { lte: now }, endsAt: { gt: now }, releasedAt: null }, select: { id: true }, take: 1 },
+      },
       where, skip: (currentPage - 1) * pageSize, take: pageSize,
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
-    return { items, total, page: currentPage, pageSize, pages };
+    return { items: items.map(estadoActualVehiculo), total, page: currentPage, pageSize, pages };
   }, { isolationLevel: "RepeatableRead" });
 }
 
@@ -153,6 +163,8 @@ export async function asignarVehiculo(db, vehicleId, data) {
     const events = await tx.$queryRaw`SELECT id FROM events WHERE id = ${data.eventId} FOR SHARE`;
     if (!events.length) { const error = new Error("Evento no encontrado"); error.status = 404; throw error; }
     const event = await tx.event.findUniqueOrThrow({ where: { id: data.eventId } });
+    const vehicle = await tx.vehicle.findUniqueOrThrow({ where: { id: vehicleId }, select: { status: true } });
+    if (vehicle.status !== "OPERATIONAL") { const error = new Error("El vehículo no está operativo"); error.status = 409; throw error; }
     const startsAt = new Date(data.startsAt);
     const endsAt = new Date(data.endsAt);
     if (startsAt > event.startsAt || endsAt < event.endsAt) {

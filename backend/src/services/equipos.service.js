@@ -1,3 +1,18 @@
+function estadoActualEquipo(item) {
+  const { maintenances, assignments, ...equipment } = item;
+  const currentStatus = item.status === "DAMAGED" ? "DAMAGED"
+    : item.status === "MAINTENANCE" || maintenances.length ? "MAINTENANCE"
+    : assignments.length ? "OCCUPIED" : item.status;
+  return { ...equipment, currentStatus };
+}
+
+function relacionesActuales(now) {
+  return {
+    maintenances: { where: { startsAt: { lte: now }, endsAt: { gt: now } }, select: { id: true }, take: 1 },
+    assignments: { where: { startsAt: { lte: now }, endsAt: { gt: now }, releasedAt: null }, select: { id: true }, take: 1 },
+  };
+}
+
 import { randomBytes } from "node:crypto";
 
 function equipmentWhere(filters = {}) {
@@ -23,10 +38,11 @@ export function listarPaginaEquipos(db, { page = 1, pageSize = 20, ...filters } 
     const pages = Math.max(1, Math.ceil(total / pageSize));
     const currentPage = Math.min(page, pages);
     const items = await tx.resource.findMany({
+      include: relacionesActuales(new Date()),
       where, skip: (currentPage - 1) * pageSize, take: pageSize,
       orderBy: [{ category: "asc" }, { name: "asc" }, { id: "asc" }],
     });
-    return { items, total, page: currentPage, pageSize, pages };
+    return { items: items.map(estadoActualEquipo), total, page: currentPage, pageSize, pages };
   }, { isolationLevel: "RepeatableRead" });
 }
 

@@ -221,3 +221,8 @@ input[data-slot="input"] { min-height: 46px; font-size: 16px; }
 .session-card { width: min(100%, 420px); background: white; padding: 28px; border: 1px solid #d6dcdb; border-radius: 12px; }
 .session-card h1 { font-size: 1.8rem; margin: 12px 0; }
 .session-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 16px; padding: 8px 24px; background: #f6f5f0; border-bottom: 1px solid #d6dcdb; }
+.resource-status { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.resource-status--green { background: #e4f4e8; color: #205b33; }
+.resource-status--yellow { background: #fff2cc; color: #715100; }
+.resource-status--red { background: #fce8e6; color: #98251b; }
+.resource-status--neutral { background: #eef0ef; color: #52605c; }

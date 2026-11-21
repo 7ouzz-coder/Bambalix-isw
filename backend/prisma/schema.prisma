@@ -133,6 +133,7 @@ model Vehicle {
   name String
   type String
   plate String @unique
+  status String @default("UNREVIEWED")
   revision Int @default(0)
   createdAt DateTime @default(now())
   maintenances VehicleMaintenance[]
