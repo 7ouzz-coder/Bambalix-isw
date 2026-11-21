@@ -1,3 +1,24 @@
+function rutNormalizado(rut) {
+  return rut.replace(/[.\s-]/g, "").toUpperCase().replace(/^0+(?=\d)/, "");
+}
+
+function rutGuardado(rut) {
+  const limpio = rutNormalizado(rut);
+  return `${limpio.slice(0, -1)}-${limpio.slice(-1)}`;
+}
+
+async function rutEnUso(db, rut, excludedId) {
+  const clients = await db.client.findMany({ where: { rut: { not: null } }, select: { id: true, rut: true } });
+  return clients.some(client => client.id !== excludedId && client.rut && rutNormalizado(client.rut) === rutNormalizado(rut));
+}
+
+function duplicadoRut() {
+  const error = new Error("Ya existe un cliente con ese RUT");
+  error.code = "P2002";
+  error.statusCode = 409;
+  return error;
+}
+
 export function clientService(db) {
   return {
     async listar() {
@@ -10,16 +31,8 @@ export function clientService(db) {
     },
 
     async crear(data) {
-      if (data.rut) {
-        const existente = await db.client.findFirst({ where: { rut: data.rut } });
-        if (existente) {
-          const error = new Error("Ya existe un cliente con ese RUT");
-          error.code = "P2002";
-          error.statusCode = 409;
-          throw error;
-        }
-      }
-      return db.client.create({ data });
+      if (data.rut && (await db.client.findFirst({ where: { rut: data.rut } }) || await rutEnUso(db, data.rut))) throw duplicadoRut();
+      return db.client.create({ data: { ...data, rut: data.rut ? rutGuardado(data.rut) : data.rut } });
     },
 
     async actualizar(id, data) {
@@ -56,20 +69,10 @@ export function clientService(db) {
         }
       }
 
-      // 4. Validar unicidad del RUT sin colisionar consigo mismo
-      if (data.rut !== undefined && data.rut !== null && data.rut !== clienteActual.rut) {
-        const duplicado = await db.client.findFirst({
-          where: {
-            rut: data.rut,
-            id: { not: id },
-          },
-        });
-        if (duplicado) {
-          const error = new Error("Ya existe un cliente con ese RUT");
-          error.code = "P2002";
-          error.statusCode = 409;
-          throw error;
-        }
+      if (data.rut !== undefined) {
+        const duplicado = await db.client.findFirst({ where: { rut: data.rut, id: { not: id } } });
+        if (duplicado || await rutEnUso(db, data.rut, id)) throw duplicadoRut();
+        data = { ...data, rut: rutGuardado(data.rut) };
       }
 
       // 5. Filtrar estrictamente solo los campos definidos (distingue undefined de null)
