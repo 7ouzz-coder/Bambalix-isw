@@ -34,9 +34,9 @@ export function PublicCalendar({ selectedDate, onSelect, occupiedDates = [], dis
         const day = i + 1, date = `${year}-${pad(index + 1)}-${pad(day)}`;
         const label = new Date(year, index, day).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
         const occupied = occupiedDates.includes(date);
-        return <button type="button" key={date} disabled={disabled} aria-label={occupied ? `${label}, ocupado` : label} aria-pressed={selectedDate === date}
+        return <button type="button" key={date} disabled={disabled || occupied} aria-label={occupied ? `${label}, Ocupado` : label} aria-pressed={selectedDate === date}
           className={occupied ? "public-calendar-occupied" : undefined}
-          onClick={() => onSelect(date)}>{day}</button>;
+          onClick={() => !occupied && onSelect(date)}>{day}</button>;
       })}
     </div>
   </div>;
