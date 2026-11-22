@@ -26,6 +26,7 @@ const defaultValues = {
 };
 
 export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
+  const [receipt, setReceipt] = useState(null);
   const [open, setOpen] = useState(false);
   const [quotes, setQuotes] = useState([]);
   const [financialSummary, setFinancialSummary] = useState(null);
@@ -81,6 +82,7 @@ export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
     setOpen(next);
     setServerError("");
     if (!next) {
+      setReceipt(null);
       reset(preselectedQuoteId ? { ...defaultValues, quoteId: preselectedQuoteId } : defaultValues);
       setFinancialSummary(null);
       setServerError("");
@@ -98,8 +100,10 @@ export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
         reference: data.reference ? data.reference.trim() : null,
       };
 
-      const result = await registerPayment(payload);
-      handleOpenChange(false);
+      const result = receipt ? await registerPayment(payload, receipt) : await registerPayment(payload);
+      setReceipt(null);
+      reset(preselectedQuoteId ? { ...defaultValues, quoteId: preselectedQuoteId } : defaultValues);
+      setOpen(false);
       if (onSaved) onSaved(result);
     } catch (failure) {
       setServerError(failure.message);
@@ -233,6 +237,13 @@ export function PaymentForm({ onSaved, preselectedQuoteId = null }) {
               disabled={isSubmitting}
               {...register("reference")}
             />
+          </div>
+
+          <div className="field">
+            <Label htmlFor="payment-receipt">Comprobante del abono (opcional)</Label>
+            <Input id="payment-receipt" type="file" accept="application/pdf,image/jpeg,image/png"
+              disabled={isSubmitting} onChange={event => setReceipt(event.target.files[0] || null)} />
+            <p className="text-xs text-muted-foreground">PDF, JPEG o PNG de hasta 2 MB.</p>
           </div>
 
           <p className="text-sm text-muted-foreground">El registro quedará asociado a tu cuenta.</p>

@@ -229,6 +229,8 @@ model Payment {
   verifiedAt   DateTime? @map("verified_at")
   createdAt    DateTime  @default(now()) @map("created_at")
 
+  receipt      PaymentReceipt?
+
   @@index([quoteId])
   @@map("payments")
 }
@@ -272,4 +274,14 @@ model PublicEventRequest {
   message String
   createdAt DateTime @default(now()) @map("created_at")
   @@map("public_event_requests")
+}
+
+
+model PaymentReceipt {
+  paymentId String @id @map("payment_id")
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  mime      String
+  content   Bytes
+
+  @@map("payment_receipts")
 }
