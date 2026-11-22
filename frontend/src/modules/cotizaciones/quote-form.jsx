@@ -403,7 +403,7 @@ export function QuoteForm({ onSaved, quote }) {
             <div className="flex justify-between items-center">
               <div>
                 <Label className="text-base font-semibold">Ítems de la cotización *</Label>
-                <p className="text-xs text-muted-foreground">Precios unitarios con hasta dos decimales.</p>
+                <p className="text-xs text-muted-foreground">Al elegir un recurso, se completa el concepto si está vacío. Ingresa el precio unitario acordado.</p>
               </div>
               <Button
                 type="button"
@@ -432,6 +432,12 @@ export function QuoteForm({ onSaved, quote }) {
                         const [kind, id] = event.target.value.split(":");
                         setValue(`items.${index}.equipmentId`, kind === "equipment" ? id : null);
                         setValue(`items.${index}.vehicleId`, kind === "vehicle" ? id : null);
+                        const catalog = kind === "equipment" ? resources.equipos : resources.vehiculos;
+                        const resource = catalog.find(item => item.id === id);
+                        const conceptField = `items.${index}.concept`;
+                        if (resource && !getValues(conceptField)?.trim()) {
+                          setValue(conceptField, resource.name, { shouldDirty: true, shouldValidate: true });
+                        }
                       }}>
                       <option value="">Servicio sin recurso asociado</option>
                       {watchedItems[index]?.equipmentId && !resources.equipos.some(item => item.id === watchedItems[index].equipmentId) &&
