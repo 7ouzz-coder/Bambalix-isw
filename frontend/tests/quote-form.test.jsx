@@ -99,6 +99,25 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
     expect(onSaved).toHaveBeenCalledWith(quote);
   });
 
+  it("filtra clientes sin distinguir tildes y conserva el cliente del borrador", async () => {
+    vi.spyOn(clientesService, "clientRequest").mockResolvedValue([...validClients,
+      { id: "cli_3", name: "José Pérez" }, { id: "cli_4", name: "Otro cliente" },
+    ]);
+    vi.spyOn(eventosService, "getEventos").mockResolvedValue(validEvents);
+    await openDialog(vi.fn(), {
+      id: "quote_1", clientId: "cli_1", eventId: 101,
+      items: [{ concept: "Audio", quantity: 1, unitPrice: 1000 }],
+    });
+    const search = document.querySelector("#quote-client-search");
+    const client = document.querySelector("#quote-client");
+    await act(async () => setInputValue(search, "JOSE"));
+    expect([...client.options].map(option => option.value)).toEqual(["", "cli_1", "cli_3"]);
+    expect(client.value).toBe("cli_1");
+    expect(document.querySelector("#quote-event").value).toBe("101");
+    await act(async () => setInputValue(search, "sin coincidencias"));
+    expect(document.body.textContent).toContain("No hay clientes que coincidan");
+  });
+
   it("muestra el recurso guardado como no disponible sin borrarlo al editar", async () => {
     vi.spyOn(clientesService, "clientRequest").mockResolvedValue(validClients);
     vi.spyOn(eventosService, "getEventos").mockResolvedValue(validEvents);
