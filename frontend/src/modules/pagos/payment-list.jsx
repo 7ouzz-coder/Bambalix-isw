@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { Banknote, CheckCircle, CreditCard, DollarSign, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getPayments } from "@/services/pagos";
+import { downloadPaymentReceipt, getPayments } from "@/services/pagos";
 import styles from "./payment-list.module.css";
 
 export function PaymentList({ revision }) {
   const [state, setState] = useState({ loading: true, items: [], error: "" });
+  const [receiptError, setReceiptError] = useState("");
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -32,6 +33,7 @@ export function PaymentList({ revision }) {
       <p className="p-4 text-sm text-muted-foreground">
         La verificación de pagos no está disponible.
       </p>
+      {receiptError && <p role="alert" className="error-message">{receiptError}</p>}
       <div className="ledger-header">
         <div>
           <h2 id="payments-list-heading">Registro y control de pagos</h2>
@@ -122,6 +124,11 @@ export function PaymentList({ revision }) {
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">
                     {payment.reference || "—"}
+                    {payment.receipt && <Button type="button" size="sm" variant="outline" onClick={async () => {
+                      setReceiptError("");
+                      try { await downloadPaymentReceipt(payment.id); }
+                      catch (failure) { setReceiptError(failure.message); }
+                    }}>Descargar comprobante</Button>}
                   </TableCell>
                   <TableCell className="font-semibold">
                     ${Number(payment.amount).toLocaleString("es-CL")}

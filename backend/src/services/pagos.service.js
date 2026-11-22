@@ -15,6 +15,7 @@ export function paymentService(
       return db.payment.findMany({
         where,
         include: {
+          receipt: { select: { paymentId: true } },
           quote: {
             select: {
               id: true,
@@ -93,7 +94,11 @@ export function paymentService(
       };
     },
 
-    async registrarRecepcion(data, actor) {
+    obtenerComprobante(paymentId) {
+      return db.paymentReceipt.findUnique({ where: { paymentId } });
+    },
+
+    async registrarRecepcion(data, actor, receipt) {
       const identity = paymentVerifierSchema.safeParse(actor);
       if (!identity.success) {
         const error = new Error("Se requiere una sesión interna válida para registrar pagos");
@@ -139,6 +144,7 @@ export function paymentService(
             reference: data.reference || null,
             status: "REGISTRADO",
             registeredBy: identity.data.id,
+            ...(receipt && { receipt: { create: receipt } }),
           },
           include: {
             quote: {

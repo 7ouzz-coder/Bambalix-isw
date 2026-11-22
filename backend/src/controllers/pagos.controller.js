@@ -37,9 +37,17 @@ export function paymentController(db) {
       }
     },
 
+    async obtenerComprobante(req, res) {
+      if (req.params.id.length > 100) return res.status(400).json({ message: "Identificador de pago inválido" });
+      const receipt = await service.obtenerComprobante(req.params.id);
+      if (!receipt) return res.status(404).json({ message: "Este pago no tiene comprobante adjunto" });
+      res.type(receipt.mime).attachment(`comprobante.${({ "image/png": "png", "image/jpeg": "jpg", "application/pdf": "pdf" })[receipt.mime]}`)
+        .send(Buffer.from(receipt.content));
+    },
+
     async registrarRecepcion(req, res, next) {
       try {
-        const nuevoPago = await service.registrarRecepcion(req.validatedBody, req.user);
+        const nuevoPago = await service.registrarRecepcion(req.validatedBody, req.user, res.locals.paymentReceipt);
         res.status(201).json(nuevoPago);
       } catch (error) {
         if (error.statusCode) {
