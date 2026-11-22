@@ -15,7 +15,7 @@ import { MaintenanceFollowUp } from "./maintenance-follow-up";
 
 const blank = { startsAt: "", endsAt: "", reason: "" };
 
-function MaintenancePanel({ equipment, busy, onClose }) {
+function MaintenancePanel({ equipment, busy, onClose, onChanged }) {
   const id = useId();
   const [page, setPage] = useState(1);
   const [attempt, setAttempt] = useState(0);
@@ -53,6 +53,7 @@ function MaintenancePanel({ equipment, busy, onClose }) {
       await createEquipmentMaintenance(equipment.id, {
         startsAt: new Date(data.startsAt).toISOString(), endsAt: new Date(data.endsAt).toISOString(), reason: data.reason,
       });
+      onChanged?.();
       reset(blank);
       setPage(1); setAttempt(value => value + 1);
       setNotice("Periodo de mantención registrado.");
@@ -101,14 +102,14 @@ function MaintenancePanel({ equipment, busy, onClose }) {
   </>;
 }
 
-export function EquipmentMaintenanceDialog({ equipment }) {
+export function EquipmentMaintenanceDialog({ equipment, onChanged }) {
   const [open, setOpen] = useState(false);
   const busy = useRef(false);
   return <Dialog open={open} onOpenChange={value => { if (!busy.current) setOpen(value); }}>
     <DialogTrigger asChild><Button variant="outline" aria-label={`Mantenciones de ${equipment.name}`}>Mantenciones</Button></DialogTrigger>
     <DialogContent className="equipment-dialog" showCloseButton={false} onEscapeKeyDown={event => { if (busy.current) event.preventDefault(); }} onPointerDownOutside={event => { if (busy.current) event.preventDefault(); }}>
       <DialogHeader><DialogTitle>Mantenciones del equipo</DialogTitle><DialogDescription>{equipment.name} · {equipment.code || "Sin código"}</DialogDescription></DialogHeader>
-      {open && <MaintenancePanel equipment={equipment} busy={busy} onClose={() => setOpen(false)} />}
+      {open && <MaintenancePanel equipment={equipment} busy={busy} onClose={() => setOpen(false)} onChanged={onChanged} />}
     </DialogContent>
   </Dialog>;
 }

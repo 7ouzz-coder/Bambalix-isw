@@ -7,6 +7,7 @@ async function requestVehicles(query = "", options = {}) {
       ...options, headers: { "Content-Type": "application/json" },
       signal: options.signal || AbortSignal.timeout(10000), cache: "no-store",
     });
+    if (response.status === 204) return null;
     let data;
     try { data = await response.json(); }
     catch { throw new Error("El servidor no devolvió una respuesta válida"); }
@@ -49,4 +50,23 @@ export function createVehicle(data) {
 
 export function updateVehicle(id, data) {
   return requestVehicles(`/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export function deleteVehicle(id) {
+  return requestVehicles(`/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function listVehicleMaintenances(id) {
+  return requestVehicles(`/${encodeURIComponent(id)}/maintenances`);
+}
+
+export function createVehicleMaintenance(id, data) {
+  return requestVehicles(`/${encodeURIComponent(id)}/maintenances`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export function listVehicleAssignments(id) {
+  return requestVehicles(`/${encodeURIComponent(id)}/assignments`);
+}
+export function createVehicleAssignment(id, data) {
+  return requestVehicles(`/${encodeURIComponent(id)}/assignments`, { method: "POST", body: JSON.stringify(data) });
 }
