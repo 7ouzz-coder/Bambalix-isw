@@ -3,7 +3,7 @@ import { publicRequestRoutes } from "./routes/solicitudes-publicas.routes.js";
 import { sessionRoutes } from "./routes/sesiones.routes.js";
 import { loadSession, requireSession, requireCsrf, requireArea, blockDecision } from "./middlewares/sesiones.validation.js";
 import express from "express";
-import { listarRecursosCotizacion } from "./services/disponibilidad-cotizacion.service.js";
+import { quoteResourceRoutes } from "./routes/disponibilidad-cotizacion.routes.js";
 import cors from "cors";
 import helmet from "helmet";
 import { equipmentRoutes } from "./routes/equipos.routes.js";
@@ -44,12 +44,7 @@ export function createApp({ db, webOrigin, sessionMiddleware = loadSession(db), 
   app.use("/api/v1/requests", requireArea("solicitudes:leer", "solicitudes:leer"), internalRequestRoutes(db));
   app.use("/api/v1/clients", requireArea("clientes:leer", "clientes:editar"), clientRoutes(db));
   app.use("/api/v1/events", requireArea("eventos:leer", "eventos:editar"), eventosRoutes(db));
-  app.get("/api/v1/quote-resources/:eventId", requireArea("cotizaciones:leer", "cotizaciones:editar"), async (req, res, next) => {
-    if (!/^[1-9]\d*$/.test(req.params.eventId) || Number(req.params.eventId) > 2147483647)
-      return res.status(400).json({ message: "Evento inválido" });
-    try { res.json(await listarRecursosCotizacion(db, Number(req.params.eventId))); }
-    catch (error) { if (error.status === 404) return res.status(404).json({ message: error.message }); next(error); }
-  });
+  app.use("/api/v1/quote-resources", requireArea("cotizaciones:leer", "cotizaciones:editar"), quoteResourceRoutes(db));
   app.use("/api/v1/quotes", requireArea("cotizaciones:leer", "cotizaciones:editar"), quoteRoutes(db));
   app.use("/api/v1/payments", requireArea("pagos:leer", "pagos:registrar"), paymentRoutes(db));
 
