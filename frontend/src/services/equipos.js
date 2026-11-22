@@ -9,6 +9,7 @@ async function requestEquipment(path, options) {
       signal: options.signal || AbortSignal.timeout(10000),
       cache: "no-store",
     });
+    if (response.status === 204) return null;
     let data;
     try {
       data = await response.json();
@@ -41,6 +42,14 @@ export function equipmentRequest({ filters = {}, ...options } = {}) {
   if (filters.status) params.set("status", filters.status);
   const query = params.toString();
   return requestEquipment(query ? `?${query}` : "", options);
+}
+
+export function createEquipmentCategory(name) {
+  return requestEquipment("/categories", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export function deleteEquipmentCategory(name) {
+  return requestEquipment(`/categories/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
 
 export function getEquipmentCategories(options = {}) {
@@ -140,5 +149,28 @@ export function createEquipmentReplacement(id, assignmentId, data) {
 export function decideEquipmentReplacement(id, assignmentId, replacementId, data) {
   return requestEquipment(`${replacementsPath(id, assignmentId)}/${encodeURIComponent(replacementId)}/decision`, {
     method: "PATCH", body: JSON.stringify(data),
+  });
+}
+
+export async function getMaintenancePhoto(id, maintenanceId, stage, signal) {
+  const response = await sessionFetch(`${API_URL}/operations/resources/${id}/maintenances/${maintenanceId}/photos/${stage}`, { signal, cache: "no-store" });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("No se pudo consultar la foto");
+  return response.blob();
+}
+
+export function saveMaintenancePhoto(id, maintenanceId, stage, file) {
+  return requestEquipment(`/${id}/maintenances/${maintenanceId}/photos/${stage}`, {
+    method: "POST", headers: { "Content-Type": file.type }, body: file,
+  });
+}
+
+export function getEquipmentIncidents(id, assignmentId, signal) {
+  return requestEquipment(`/${id}/assignments/${assignmentId}/incidents`, { signal });
+}
+
+export function createEquipmentIncident(id, assignmentId, description) {
+  return requestEquipment(`/${id}/assignments/${assignmentId}/incidents`, {
+    method: "POST", body: JSON.stringify({ description }),
   });
 }

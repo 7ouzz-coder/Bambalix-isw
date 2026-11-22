@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 export function VehicleForm({ onSaved, vehicle }) {
   const formId = useId();
   const editing = Boolean(vehicle);
-  const defaults = vehicle ? { name: vehicle.name, type: vehicle.type, plate: vehicle.plate, revision: vehicle.revision } : { name: "", type: "", plate: "" };
+  const defaults = vehicle ? { name: vehicle.name, type: vehicle.type, plate: vehicle.plate, status: vehicle.status || "UNREVIEWED", revision: vehicle.revision } : { name: "", type: "", plate: "", status: "UNREVIEWED" };
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [stale, setStale] = useState(false);
@@ -48,6 +48,11 @@ export function VehicleForm({ onSaved, vehicle }) {
           <Label htmlFor={`${formId}-${key}`}>{label} *</Label><Input id={`${formId}-${key}`} {...register(key)} maxLength={max} required disabled={isSubmitting} aria-invalid={Boolean(errors[key])} aria-describedby={errors[key] ? `${formId}-${key}-error` : undefined} />
           {errors[key] && <p className="field-error" id={`${formId}-${key}-error`}>{errors[key].message}</p>}
         </div>)}
+        <div className="field"><Label htmlFor={`${formId}-status`}>Estado operativo *</Label>
+          <select id={`${formId}-status`} className="equipment-category-filter" {...register("status")} disabled={isSubmitting}>
+            <option value="UNREVIEWED">Sin revisar</option><option value="OPERATIONAL">Operativo</option><option value="DAMAGED">Dañado</option>
+          </select>
+        </div>
         {error && <p className="error-message" role="alert">{error}</p>}
         <div className="form-actions"><Button type="button" variant="outline" onClick={() => changeOpen(false)} disabled={isSubmitting}>Cancelar</Button><Button type="submit" disabled={isSubmitting || stale}>{isSubmitting ? "Guardando…" : editing ? "Guardar cambios" : "Guardar vehículo"}</Button></div>
       </form>

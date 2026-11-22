@@ -13,7 +13,13 @@ body { margin: 0; }
 .equipment-category-filter { width: 100%; min-width: 0; height: 46px; padding: 8px 12px; border: 1px solid #c9cec9; border-radius: 8px; background: #fff; color: #17252c; font-size: 16px; }
 .equipment-category-filter:focus-visible { outline: 2px solid #a63f1f; outline-offset: 2px; }
 .equipment-filter-actions { display: flex; gap: 8px; }
-.equipment-row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.equipment-actions-menu { min-width: 150px; }
+.equipment-actions-menu summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; list-style: none; min-height: 44px; padding: 0 12px; border: 1px solid #c9cec9; border-radius: 8px; background: #fff; color: #17252c; font-weight: 600; }
+.equipment-actions-menu summary::-webkit-details-marker { display: none; }
+.equipment-actions-menu summary:focus-visible { outline: 2px solid #a63f1f; outline-offset: 2px; }
+.equipment-actions-menu[open] summary { background: #f3f5f3; }
+.equipment-row-actions { display: flex; flex-direction: column; gap: 4px; padding: 6px; margin-top: 6px; border: 1px solid #d8ddd9; border-radius: 8px; background: #fff; }
+.equipment-row-actions button { width: 100%; min-height: 44px; justify-content: flex-start; }
 .list-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 20px 24px; }
 .equipment-filters > .field-error { grid-column: 1 / -1; }
 .equipment-inventory-filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -215,3 +221,8 @@ input[data-slot="input"] { min-height: 46px; font-size: 16px; }
 .session-card { width: min(100%, 420px); background: white; padding: 28px; border: 1px solid #d6dcdb; border-radius: 12px; }
 .session-card h1 { font-size: 1.8rem; margin: 12px 0; }
 .session-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 16px; padding: 8px 24px; background: #f6f5f0; border-bottom: 1px solid #d6dcdb; }
+.resource-status { display: inline-block; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.resource-status--green { background: #e4f4e8; color: #205b33; }
+.resource-status--yellow { background: #fff2cc; color: #715100; }
+.resource-status--red { background: #fce8e6; color: #98251b; }
+.resource-status--neutral { background: #eef0ef; color: #52605c; }
