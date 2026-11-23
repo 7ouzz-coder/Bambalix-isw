@@ -12,6 +12,15 @@ const createOptionalText = (max) =>
 
 const requiredRut = z.string({ error: "El RUT es obligatorio" }).trim().min(1, "El RUT es obligatorio").max(20).refine(rutValido, "Ingresa un RUT válido");
 const requiredPhone = z.string({ error: "El teléfono es obligatorio" }).trim().min(1, "El teléfono es obligatorio").max(40).refine(celularValido, "Ingresa un celular chileno que comience con +569 o 9");
+const addressRegex = /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s#.,\-\/]*$/;
+const addressSchema = z
+  .string()
+  .trim()
+  .max(240, "Máximo 240 caracteres")
+  .refine((val) => addressRegex.test(val), "La dirección solo permite letras, números, espacios y los signos #, ., ,, -, /")
+  .optional()
+  .nullable()
+  .transform((val) => (val && val.trim() !== "" ? val.trim() : null));
 
 export const createClientSchema = z
   .object({
@@ -27,7 +36,7 @@ export const createClientSchema = z
       .email("Ingresa un correo electrónico válido"),
     rut: requiredRut,
     phone: requiredPhone,
-    address: createOptionalText(240),
+    address: addressSchema,
     clientType: z.enum(["persona", "empresa"]).default("persona"),
     contactName: createOptionalText(120),
     contactPhone: createOptionalText(40).refine(value => value === null || celularValido(value), "Ingresa un celular de contacto chileno válido"),
@@ -69,6 +78,22 @@ const patchOptionalNullableText = (max) =>
       return val.trim();
     });
 
+const patchAddressSchema = z
+  .union([
+    z
+      .string()
+      .trim()
+      .max(240, "Máximo 240 caracteres")
+      .refine((val) => addressRegex.test(val), "La dirección solo permite letras, números, espacios y los signos #, ., ,, -, /"),
+    z.null(),
+  ])
+  .optional()
+  .transform((val) => {
+    if (val === undefined) return undefined;
+    if (val === null || val.trim() === "") return null;
+    return val.trim();
+  });
+
 export const updateClientSchema = z
   .object({
     name: z
@@ -85,7 +110,7 @@ export const updateClientSchema = z
       .optional(),
     rut: requiredRut.optional(),
     phone: requiredPhone.optional(),
-    address: patchOptionalNullableText(240),
+    address: patchAddressSchema,
     clientType: z.enum(["persona", "empresa"]).optional(),
     contactName: patchOptionalNullableText(120),
     contactPhone: patchOptionalNullableText(40).refine(value => value == null || celularValido(value), "Ingresa un celular de contacto chileno válido"),

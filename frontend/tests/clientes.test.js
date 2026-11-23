@@ -48,6 +48,10 @@ describe("Formulario y servicio de clientes", () => {
     expect(validateClient({ ...base, rut: "12.345.678-9" }).rut).toBeTruthy();
     expect(clientFormSchema.safeParse({ ...base, contactPhone: "abc" }).success).toBe(false);
     expect(clientFormSchema.safeParse({ ...base, contactPhone: "+56912345678" }).success).toBe(true);
+    expect(clientFormSchema.safeParse({ ...base, address: "Av. Providencia #123, Depto. 4-B / Torre 1" }).success).toBe(true);
+    expect(clientFormSchema.safeParse({ ...base, address: "Av Providencia @123" }).success).toBe(false);
+    expect(validateClient({ ...base, address: "Av Providencia @123" }).address).toBe("La dirección solo permite letras, números, espacios y los signos #, ., ,, -, /");
+    expect(validateClient({ ...base, address: "Av. Providencia #1234" }).address).toBeUndefined();
   });
 
   it("envía las solicitudes GET al endpoint de clientes", async () => {

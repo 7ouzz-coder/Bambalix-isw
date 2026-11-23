@@ -30,6 +30,10 @@ export const clientFormSchema = z
       .string()
       .trim()
       .max(240, "La dirección admite hasta 240 caracteres")
+      .refine(
+        (val) => /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s#.,\-\/]*$/.test(val),
+        "La dirección solo permite letras, números, espacios y los signos #, ., ,, -, /"
+      )
       .optional()
       .or(z.literal("")),
     clientType: z.enum(["persona", "empresa"]).default("persona"),
