@@ -7,7 +7,7 @@ const payloadPersona = {
   email: "maria@example.com",
   rut: "12.345.678-5",
   phone: "+56 9 1234 5678",
-  address: "Av. Central 123",
+  address: "Av Central 123",
   clientType: "persona",
 };
 
@@ -85,6 +85,18 @@ describe("Requisito 1: Gestión de clientes", () => {
         clientType: "empresa",
         contactName: "Carlos Gómez",
       });
+    });
+
+    it("valida que la dirección sea alfanumérica y rechaza símbolos no permitidos", async () => {
+      const { api } = setup();
+      const resValido = await api.post("/api/v1/clients").send({ ...payloadPersona, address: "Av. Los Alerces #123, Depto. 4-B / Torre 1" });
+      expect(resValido.status).toBe(201);
+      const resSimboloInvalido = await api.post("/api/v1/clients").send({ ...payloadPersona, address: "Av Providencia @123 <script>" });
+      expect(resSimboloInvalido.status).toBe(400);
+      const resPatchInvalido = await api.patch("/api/v1/clients/cli_test_1").send({ address: "Calle Falsa $123" });
+      expect(resPatchInvalido.status).toBe(400);
+      const resPatchValido = await api.patch("/api/v1/clients/cli_test_1").send({ address: "Av. Providencia #1234, Depto. 402" });
+      expect(resPatchValido.status).toBe(200);
     });
 
     it("rechaza un celular de contacto inválido y acepta uno chileno", async () => {

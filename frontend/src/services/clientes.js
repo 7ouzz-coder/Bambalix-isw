@@ -75,6 +75,9 @@ export function validateClient({
   else if (phone.trim().length > 40) errors.phone = "El teléfono admite hasta 40 caracteres";
   else if (!celularValido(phone)) errors.phone = "Ingresa un celular chileno válido";
   if (address && address.trim().length > 240) errors.address = "La dirección admite hasta 240 caracteres";
+  else if (address && !/^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s#.,\-\/]*$/.test(address.trim())) {
+    errors.address = "La dirección solo permite letras, números, espacios y los signos #, ., ,, -, /";
+  }
   if (clientType === "empresa" && (!contactName || contactName.trim().length < 2)) {
     errors.contactName = "Para empresas es obligatorio indicar el encargado de contacto";
   }

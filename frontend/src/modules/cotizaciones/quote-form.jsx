@@ -41,6 +41,10 @@ export const eventRecordSchema = z
   })
   .passthrough();
 
+function normalizeClientSearch(value) {
+  return value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+}
+
 const defaultValues = {
   clientId: "",
   eventId: "",
@@ -57,6 +61,7 @@ export function QuoteForm({ onSaved, quote }) {
   const [dataError, setDataError] = useState("");
   const [hasLoadedValidData, setHasLoadedValidData] = useState(false);
   const [clients, setClients] = useState([]);
+  const [clientSearch, setClientSearch] = useState("");
   const [events, setEvents] = useState([]);
   const [serverError, setServerError] = useState("");
   const loadRequestIdRef = useRef(0);
@@ -198,6 +203,13 @@ export function QuoteForm({ onSaved, quote }) {
   }, [open, fetchData]);
 
   // Filtrar eventos por el cliente seleccionado
+  const search = normalizeClientSearch(clientSearch);
+  const matchingClients = clients.filter(client =>
+    normalizeClientSearch(client.name).includes(search)
+  );
+  const visibleClients = matchingClients.some(client => client.id === selectedClientId)
+    ? matchingClients
+    : [...clients.filter(client => client.id === selectedClientId), ...matchingClients];
   const availableEvents = events.filter((ev) => ev.clientId === selectedClientId);
 
   function handleOpenChange(next) {
@@ -217,6 +229,7 @@ export function QuoteForm({ onSaved, quote }) {
     }
     setOpen(next);
     if (!next) {
+      setClientSearch("");
       reset(defaultValues);
       setServerError("");
       setDataError("");
@@ -257,6 +270,7 @@ export function QuoteForm({ onSaved, quote }) {
 
       const result = quote ? await updateQuote(quote.id, payload) : await createQuote(payload);
       setOpen(false);
+      setClientSearch("");
       reset(defaultValues);
       if (onSaved) onSaved(result);
     } catch (failure) {
@@ -303,6 +317,18 @@ export function QuoteForm({ onSaved, quote }) {
         <form noValidate onSubmit={handleSubmit(onSubmit)} className="equipment-form">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="field">
+              <Label htmlFor="quote-client-search">Buscar cliente por nombre</Label>
+              <Input
+                id="quote-client-search"
+                type="search"
+                maxLength={120}
+                value={clientSearch}
+                onChange={event => setClientSearch(event.target.value)}
+                disabled={isSubmitting || loadingData || !hasLoadedValidData}
+              />
+              {search && hasLoadedValidData && !matchingClients.length && (
+                <p role="status" className="text-sm text-muted-foreground">No hay clientes que coincidan con la búsqueda.</p>
+              )}
               <Label htmlFor="quote-client">Cliente *</Label>
               <select
                 id="quote-client"
@@ -322,7 +348,7 @@ export function QuoteForm({ onSaved, quote }) {
                     ? "No hay clientes registrados"
                     : "Selecciona un cliente…"}
                 </option>
-                {clients.map((c) => (
+                {visibleClients.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} {c.clientType === "empresa" ? "(Empresa)" : ""}
                   </option>
@@ -377,7 +403,7 @@ export function QuoteForm({ onSaved, quote }) {
             <div className="flex justify-between items-center">
               <div>
                 <Label className="text-base font-semibold">Ítems de la cotización *</Label>
-                <p className="text-xs text-muted-foreground">Precios unitarios con hasta dos decimales.</p>
+                <p className="text-xs text-muted-foreground">Al elegir un recurso, se completa el concepto si está vacío. Ingresa el precio unitario acordado.</p>
               </div>
               <Button
                 type="button"
@@ -406,6 +432,12 @@ export function QuoteForm({ onSaved, quote }) {
                         const [kind, id] = event.target.value.split(":");
                         setValue(`items.${index}.equipmentId`, kind === "equipment" ? id : null);
                         setValue(`items.${index}.vehicleId`, kind === "vehicle" ? id : null);
+                        const catalog = kind === "equipment" ? resources.equipos : resources.vehiculos;
+                        const resource = catalog.find(item => item.id === id);
+                        const conceptField = `items.${index}.concept`;
+                        if (resource && !getValues(conceptField)?.trim()) {
+                          setValue(conceptField, resource.name, { shouldDirty: true, shouldValidate: true });
+                        }
                       }}>
                       <option value="">Servicio sin recurso asociado</option>
                       {watchedItems[index]?.equipmentId && !resources.equipos.some(item => item.id === watchedItems[index].equipmentId) &&

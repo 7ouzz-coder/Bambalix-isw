@@ -99,6 +99,46 @@ describe("Pruebas de interacción y comportamiento real de QuoteForm", () => {
     expect(onSaved).toHaveBeenCalledWith(quote);
   });
 
+  it("filtra clientes sin distinguir tildes y conserva el cliente del borrador", async () => {
+    vi.spyOn(clientesService, "clientRequest").mockResolvedValue([...validClients,
+      { id: "cli_3", name: "José Pérez" }, { id: "cli_4", name: "Otro cliente" },
+    ]);
+    vi.spyOn(eventosService, "getEventos").mockResolvedValue(validEvents);
+    await openDialog(vi.fn(), {
+      id: "quote_1", clientId: "cli_1", eventId: 101,
+      items: [{ concept: "Audio", quantity: 1, unitPrice: 1000 }],
+    });
+    const search = document.querySelector("#quote-client-search");
+    const client = document.querySelector("#quote-client");
+    await act(async () => setInputValue(search, "JOSE"));
+    expect([...client.options].map(option => option.value)).toEqual(["", "cli_1", "cli_3"]);
+    expect(client.value).toBe("cli_1");
+    expect(document.querySelector("#quote-event").value).toBe("101");
+    await act(async () => setInputValue(search, "sin coincidencias"));
+    expect(document.body.textContent).toContain("No hay clientes que coincidan");
+  });
+
+  it.each([["equipment", "Consola"], ["vehicle", "Furgón"]])("precarga el concepto de %s y conserva el precio y el texto editado", async (kind, name) => {
+    vi.spyOn(clientesService, "clientRequest").mockResolvedValue(validClients);
+    vi.spyOn(eventosService, "getEventos").mockResolvedValue(validEvents);
+    vi.mocked(cotizacionesService.getQuoteResources).mockResolvedValue({
+      equipos: [{ id: "e1", name: "Consola" }],
+      vehiculos: [{ id: "v1", name: "Furgón" }],
+    });
+    await openDialog(vi.fn(), {
+      id: "quote_1", clientId: "cli_1", eventId: 101,
+      items: [{ concept: "", quantity: 1, unitPrice: 12000 }],
+    });
+    const resource = document.querySelector("#quote-resource-0");
+    const concept = document.querySelector("#quote-concept-0");
+    await act(async () => { resource.value = kind === "equipment" ? "equipment:e1" : "vehicle:v1"; resource.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(concept.value).toBe(name);
+    expect(document.querySelector("#quote-price-0").value).toBe("12000");
+    await act(async () => setInputValue(concept, "Concepto acordado"));
+    await act(async () => { resource.value = kind === "equipment" ? "vehicle:v1" : "equipment:e1"; resource.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(concept.value).toBe("Concepto acordado");
+  });
+
   it("muestra el recurso guardado como no disponible sin borrarlo al editar", async () => {
     vi.spyOn(clientesService, "clientRequest").mockResolvedValue(validClients);
     vi.spyOn(eventosService, "getEventos").mockResolvedValue(validEvents);

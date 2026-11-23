@@ -265,6 +265,8 @@ model Payment {
   verifiedAt   DateTime? @map("verified_at")
   createdAt    DateTime  @default(now()) @map("created_at")
 
+  receipt      PaymentReceipt?
+
   @@index([quoteId])
   @@map("payments")
 }
@@ -328,4 +330,13 @@ model EquipmentIncident {
   createdAt DateTime @default(now())
 
   @@index([assignmentId, createdAt])
+}
+
+model PaymentReceipt {
+  paymentId String @id @map("payment_id")
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  mime      String
+  content   Bytes
+
+  @@map("payment_receipts")
 }
