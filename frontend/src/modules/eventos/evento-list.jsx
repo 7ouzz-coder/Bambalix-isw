@@ -36,6 +36,29 @@ export function EventoList({ revision, onEventoUpdated }) {
     });
   }
 
+  function getStatusBadge(status) {
+    const raw = String(status || "").toUpperCase();
+    if (raw === "CONFIRMADO") {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-300">
+          Confirmado
+        </span>
+      );
+    }
+    if (raw === "CANCELADO") {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">
+          Cancelado
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+        Por confirmar
+      </span>
+    );
+  }
+
   function handleEditClick(evento) {
     setEditingEvento(evento);
     setEditOpen(true);
@@ -67,6 +90,7 @@ export function EventoList({ revision, onEventoUpdated }) {
               <TableHead>Título</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Tipo</TableHead>
+              <TableHead>Estado</TableHead>
               <TableHead>Inicio</TableHead>
               <TableHead>Término</TableHead>
               <TableHead>Lugar</TableHead>
@@ -80,9 +104,18 @@ export function EventoList({ revision, onEventoUpdated }) {
                 <TableCell className="font-medium">{e.title}</TableCell>
                 <TableCell>{e.client?.name || "-"}</TableCell>
                 <TableCell>{e.eventType?.name || "-"}</TableCell>
+                <TableCell>{getStatusBadge(e.status)}</TableCell>
                 <TableCell>{formatDate(e.startsAt)}</TableCell>
                 <TableCell>{formatDate(e.endsAt)}</TableCell>
-                <TableCell>{e.location || "—"}</TableCell>
+                <TableCell>
+                  {e.location ? (
+                    e.location
+                  ) : (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium text-xs">
+                      Sin lugar asignado
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="text-right">{e.attendees}</TableCell>
                 <TableCell className="text-center">
                   <Button

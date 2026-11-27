@@ -32,11 +32,26 @@ describe("Formulario y servicio de clientes", () => {
       name: "Empresa SPA",
       email: "empresa@ejemplo.cl",
       rut: "76.543.210-3",
-      phone: "+56223456789",
+      phone: "+56923456789",
       clientType: "empresa",
       contactName: "",
     });
     expect(errors.contactName).toBe("Para empresas es obligatorio indicar el encargado de contacto");
+  });
+
+  it("valida el dígito del RUT y el formato de celular chileno", () => {
+    const base = { name: "Ana Pérez", email: "ana@example.com", rut: "12.345.678-5", phone: "912345678" };
+    expect(clientFormSchema.safeParse(base).success).toBe(true);
+    expect(clientFormSchema.safeParse({ ...base, phone: "+56912345678" }).success).toBe(true);
+    expect(clientFormSchema.safeParse({ ...base, rut: "12.345.678-9" }).success).toBe(false);
+    expect(clientFormSchema.safeParse({ ...base, phone: "+56223456789" }).success).toBe(false);
+    expect(validateClient({ ...base, rut: "12.345.678-9" }).rut).toBeTruthy();
+    expect(clientFormSchema.safeParse({ ...base, contactPhone: "abc" }).success).toBe(false);
+    expect(clientFormSchema.safeParse({ ...base, contactPhone: "+56912345678" }).success).toBe(true);
+    expect(clientFormSchema.safeParse({ ...base, address: "Av. Providencia #123, Depto. 4-B / Torre 1" }).success).toBe(true);
+    expect(clientFormSchema.safeParse({ ...base, address: "Av Providencia @123" }).success).toBe(false);
+    expect(validateClient({ ...base, address: "Av Providencia @123" }).address).toBe("La dirección solo permite letras, números, espacios y los signos #, ., ,, -, /");
+    expect(validateClient({ ...base, address: "Av. Providencia #1234" }).address).toBeUndefined();
   });
 
   it("envía las solicitudes GET al endpoint de clientes", async () => {
@@ -74,7 +89,7 @@ describe("Formulario y servicio de clientes", () => {
       name: "Producciones SA",
       email: "prod@ejemplo.cl",
       rut: "76.543.210-3",
-      phone: "+56223456789",
+      phone: "+56923456789",
       clientType: "empresa",
       contactName: "",
     });
@@ -84,7 +99,7 @@ describe("Formulario y servicio de clientes", () => {
       name: "Producciones SA",
       email: "prod@ejemplo.cl",
       rut: "76.543.210-3",
-      phone: "+56223456789",
+      phone: "+56923456789",
       clientType: "empresa",
       contactName: "Roberto Gómez",
     });

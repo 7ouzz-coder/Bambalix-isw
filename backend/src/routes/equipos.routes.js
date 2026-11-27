@@ -1,4 +1,6 @@
+import { mountEquipmentEvidence } from "./evidencia-equipos.routes.js";
 import { Router } from "express";
+import { z } from "zod";
 import { reemplazosRoutes } from "./reemplazos.routes.js";
 import { asignacionesController } from "../controllers/asignaciones.controller.js";
 import { validarAsignacion, validarPaginaAsignaciones, validarEventosAsignacion, validarDisponibilidad, validarLiberacion, validarIdAsignacion } from "../middlewares/asignaciones.validation.js";
@@ -10,6 +12,7 @@ import { validarEquipo, validarFiltrosEquipos, validarIdEquipo, validarEstadoEqu
 export function equipmentRoutes(db) {
   const router = Router();
   const controller = equiposController(db);
+  mountEquipmentEvidence(router, db);
   const maintenance = mantencionesController(db);
   const assignments = asignacionesController(db);
   router.use("/:id/assignments/:assignmentId/replacements", validarIdEquipo, validarIdAsignacion, reemplazosRoutes(db));
@@ -24,6 +27,17 @@ export function equipmentRoutes(db) {
   router.post("/:id/maintenances/:maintenanceId/notes", validarIdEquipo, validarIdMantencion, validarNotaMantencion, maintenance.agregarNota);
   router.patch("/:id/maintenances/:maintenanceId/close", validarIdEquipo, validarIdMantencion, validarCierreMantencion, maintenance.cerrar);
   router.get("/categories", controller.listarCategoriasEquipos);
+  router.post("/categories", (req, res, next) => {
+    const result = z.object({ name: z.string().trim().min(2).max(80) }).strict().safeParse(req.body);
+    if (!result.success) return res.status(400).json({ message: "Ingresa una categoría de entre 2 y 80 caracteres" });
+    req.body = result.data;
+    next();
+  }, controller.crearCategoria);
+  router.delete("/categories/:name", (req, res, next) => {
+    if (!z.string().trim().min(2).max(80).safeParse(req.params.name).success)
+      return res.status(400).json({ message: "Categoría inválida" });
+    next();
+  }, controller.eliminarCategoria);
   router.get("/page", validarPaginaEquipos, controller.listarPaginaEquipos);
   router.get("/", validarFiltrosEquipos, controller.listarEquipos);
   router.post("/", validarEquipo, controller.crearEquipo);

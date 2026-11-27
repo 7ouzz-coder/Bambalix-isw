@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rutValido, celularValido } from "./identidad-cl.js";
 
 const createOptionalText = (max) =>
   z
@@ -9,8 +10,17 @@ const createOptionalText = (max) =>
     .nullable()
     .transform((val) => (val && val.trim() !== "" ? val.trim() : null));
 
-const requiredRut = z.string({ error: "El RUT es obligatorio" }).trim().min(1, "El RUT es obligatorio").max(20);
-const requiredPhone = z.string({ error: "El teléfono es obligatorio" }).trim().min(1, "El teléfono es obligatorio").max(40);
+const requiredRut = z.string({ error: "El RUT es obligatorio" }).trim().min(1, "El RUT es obligatorio").max(20).refine(rutValido, "Ingresa un RUT válido");
+const requiredPhone = z.string({ error: "El teléfono es obligatorio" }).trim().min(1, "El teléfono es obligatorio").max(40).refine(celularValido, "Ingresa un celular chileno que comience con +569 o 9");
+const addressRegex = /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s#.,\-\/]*$/;
+const addressSchema = z
+  .string()
+  .trim()
+  .max(240, "Máximo 240 caracteres")
+  .refine((val) => addressRegex.test(val), "La dirección solo permite letras, números, espacios y los signos #, ., ,, -, /")
+  .optional()
+  .nullable()
+  .transform((val) => (val && val.trim() !== "" ? val.trim() : null));
 
 export const createClientSchema = z
   .object({
@@ -26,15 +36,15 @@ export const createClientSchema = z
       .email("Ingresa un correo electrónico válido"),
     rut: requiredRut,
     phone: requiredPhone,
-    address: createOptionalText(240),
+    address: addressSchema,
     clientType: z.enum(["persona", "empresa"]).default("persona"),
     contactName: createOptionalText(120),
-    contactPhone: createOptionalText(40),
+    contactPhone: createOptionalText(40).refine(value => value === null || celularValido(value), "Ingresa un celular de contacto chileno válido"),
     contactEmail: z
       .string()
       .trim()
       .max(254, "El correo de contacto no puede superar 254 caracteres")
-      .email("Ingresa un correo de contacto válido")
+      .refine(value => !value || z.email().safeParse(value).success, "Ingresa un correo de contacto válido")
       .optional()
       .nullable()
       .transform((val) => (val && val.trim() !== "" ? val.trim() : null)),
@@ -68,6 +78,22 @@ const patchOptionalNullableText = (max) =>
       return val.trim();
     });
 
+const patchAddressSchema = z
+  .union([
+    z
+      .string()
+      .trim()
+      .max(240, "Máximo 240 caracteres")
+      .refine((val) => addressRegex.test(val), "La dirección solo permite letras, números, espacios y los signos #, ., ,, -, /"),
+    z.null(),
+  ])
+  .optional()
+  .transform((val) => {
+    if (val === undefined) return undefined;
+    if (val === null || val.trim() === "") return null;
+    return val.trim();
+  });
+
 export const updateClientSchema = z
   .object({
     name: z
@@ -84,13 +110,13 @@ export const updateClientSchema = z
       .optional(),
     rut: requiredRut.optional(),
     phone: requiredPhone.optional(),
-    address: patchOptionalNullableText(240),
+    address: patchAddressSchema,
     clientType: z.enum(["persona", "empresa"]).optional(),
     contactName: patchOptionalNullableText(120),
-    contactPhone: patchOptionalNullableText(40),
+    contactPhone: patchOptionalNullableText(40).refine(value => value == null || celularValido(value), "Ingresa un celular de contacto chileno válido"),
     contactEmail: z
       .union([
-        z.string().trim().max(254, "El correo no puede superar 254 caracteres").email("Ingresa un correo válido"),
+        z.string().trim().max(254, "El correo no puede superar 254 caracteres").refine(value => !value || z.email().safeParse(value).success, "Ingresa un correo válido"),
         z.null(),
       ])
       .optional()

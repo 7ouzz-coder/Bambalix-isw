@@ -5,18 +5,20 @@ import { getEquipmentAssignments } from "@/services/equipos";
 import { AssignmentForm } from "./assignment-form";
 import { AssignmentReleaseForm } from "./assignment-release-form";
 import { EquipmentReplacements } from "./equipment-replacements";
+import { EquipmentIncidents } from "./equipment-incidents";
 import { Button } from "@/components/ui/button";
 import { ListPagination } from "@/components/list-pagination";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import styles from "./equipment-replacements.module.css";
 
-function AssignmentPanel({ equipment, busy, onClose }) {
+function AssignmentPanel({ equipment, busy, onClose, onChanged }) {
   const id = useId();
   const [page, setPage] = useState(1);
   const [attempt, setAttempt] = useState(0);
   const [notice, setNotice] = useState("");
   const [release, setRelease] = useState(null);
   const [replacementAssignment, setReplacementAssignment] = useState(null);
+  const [incidentAssignment, setIncidentAssignment] = useState(null);
   const [state, setState] = useState({ loading: true, items: [], pages: 1, total: 0, error: "" });
   useEffect(() => {
     const controller = new AbortController();
@@ -35,7 +37,8 @@ function AssignmentPanel({ equipment, busy, onClose }) {
     return () => controller.abort();
   }, [equipment.id, page, attempt]);
 
-  function saved(message) { setNotice(message); setRelease(null); setPage(1); setAttempt(value => value + 1); }
+  function saved(message) { onChanged?.(); setNotice(message); setRelease(null); setPage(1); setAttempt(value => value + 1); }
+  if (incidentAssignment) return <EquipmentIncidents equipmentId={equipment.id} assignmentId={incidentAssignment.id} onBack={() => setIncidentAssignment(null)} />;
   if (replacementAssignment) return <EquipmentReplacements equipment={equipment} assignment={replacementAssignment} busy={busy} onBack={() => { setReplacementAssignment(null); setAttempt(value => value + 1); }} />;
   return <>
     {release ? <AssignmentReleaseForm key={release.id} equipmentId={equipment.id} assignment={release} busy={busy} onSaved={saved} onCancel={() => setRelease(null)} /> : <AssignmentForm equipment={equipment} busy={busy} onSaved={saved} onClose={onClose} />}
@@ -48,6 +51,7 @@ function AssignmentPanel({ equipment, busy, onClose }) {
           <p>{item.event.title} · #{item.event.id}</p>
           <p>Inicio: <time dateTime={item.startsAt}>{new Date(item.startsAt).toLocaleString("es-CL")}</time></p>
           <p>Término: <time dateTime={item.endsAt}>{new Date(item.endsAt).toLocaleString("es-CL")}</time></p>
+          <Button type="button" variant="outline" disabled={Boolean(release)} onClick={() => { if (!busy.current) setIncidentAssignment(item); }}>Incidencias</Button>
           <Button type="button" variant="outline" disabled={Boolean(release)} aria-label={`Reemplazos de ${item.event.title}`} onClick={() => { if (!busy.current) { setReplacementAssignment(item); setNotice(""); } }}>Reemplazos</Button>
           {item.releasedAt ? <><p>Liberada: {new Date(item.releasedAt).toLocaleString("es-CL")}</p><p>{item.releaseReason}</p></> : <>
             <p>Asignación activa</p>
@@ -62,14 +66,14 @@ function AssignmentPanel({ equipment, busy, onClose }) {
   </>;
 }
 
-export function EquipmentAssignmentDialog({ equipment }) {
+export function EquipmentAssignmentDialog({ equipment, onChanged }) {
   const [open, setOpen] = useState(false);
   const busy = useRef(false);
   return <Dialog open={open} onOpenChange={value => { if (!busy.current) setOpen(value); }}>
     <DialogTrigger asChild><Button variant="outline" aria-label={`Asignaciones de ${equipment.name}`}>Asignaciones</Button></DialogTrigger>
     <DialogContent className={`equipment-dialog ${styles.dialog}`} showCloseButton={false} onEscapeKeyDown={event => { if (busy.current) event.preventDefault(); }} onPointerDownOutside={event => { if (busy.current) event.preventDefault(); }}>
       <DialogHeader><DialogTitle>Asignaciones del equipo</DialogTitle><DialogDescription>{equipment.name} · {equipment.code}</DialogDescription></DialogHeader>
-      {open && <AssignmentPanel equipment={equipment} busy={busy} onClose={() => setOpen(false)} />}
+      {open && <AssignmentPanel equipment={equipment} busy={busy} onClose={() => setOpen(false)} onChanged={onChanged} />}
     </DialogContent>
   </Dialog>;
 }

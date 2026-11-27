@@ -3,7 +3,7 @@ import { z } from "zod";
 export const equipmentSchema = z.object({
   name: z.string().trim().min(2).max(120),
   category: z.string().trim().min(2).max(80),
-  code: z.string().trim().min(1, "El código del equipo es obligatorio").max(60),
+  code: z.string().trim().min(1, "El código del equipo es obligatorio").max(60).optional(),
   mode: z.literal("UNIT"),
   quantity: z.literal(1),
 }).strict();
@@ -15,7 +15,8 @@ export const equipmentFiltersSchema = z.object({
   status: z.enum(["UNREVIEWED", "OPERATIONAL", "MAINTENANCE", "DAMAGED"]).optional(),
 }).strict();
 
-export const equipmentUpdateSchema = equipmentSchema.pick({ name: true, category: true, code: true }).extend({
+export const equipmentUpdateSchema = equipmentSchema.pick({ name: true, category: true }).extend({
+  code: z.string().trim().min(1).max(60),
   revision: z.number().int().min(0).max(2147483646),
 }).strict();
 

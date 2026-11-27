@@ -27,5 +27,30 @@ export function vehiculosController(db) {
       next(error);
     }
   }
-  return { listar, listarPagina, listarTipos, crear, editar };
+  async function listarMantenciones(_req, res, next) {
+    try { res.json(await vehiculosService.listarMantencionesVehiculo(db, res.locals.vehicleId)); }
+    catch (error) { if (error.status === 404) return res.status(404).json({ message: error.message }); next(error); }
+  }
+  async function crearMantencion(_req, res, next) {
+    try { res.status(201).json(await vehiculosService.crearMantencionVehiculo(db, res.locals.vehicleId, res.locals.maintenance)); }
+    catch (error) { if (error.status === 404 || error.status === 409) return res.status(error.status).json({ message: error.message }); next(error); }
+  }
+  async function listarAsignaciones(_req, res, next) {
+    try { res.json(await vehiculosService.listarAsignacionesVehiculo(db, res.locals.vehicleId)); }
+    catch (error) { if (error.status === 404) return res.status(404).json({ message: error.message }); next(error); }
+  }
+  async function asignar(_req, res, next) {
+    try { res.status(201).json(await vehiculosService.asignarVehiculo(db, res.locals.vehicleId, res.locals.assignment)); }
+    catch (error) { if (error.status === 404 || error.status === 409) return res.status(error.status).json({ message: error.message }); next(error); }
+  }
+  async function eliminar(_req, res, next) {
+    try {
+      await vehiculosService.eliminarVehiculo(db, res.locals.vehicleId);
+      res.status(204).end();
+    } catch (error) {
+      if (error.status === 404 || error.status === 409) return res.status(error.status).json({ message: error.message });
+      next(error);
+    }
+  }
+  return { listarAsignaciones, asignar, listarMantenciones, crearMantencion, eliminar, listar, listarPagina, listarTipos, crear, editar };
 }

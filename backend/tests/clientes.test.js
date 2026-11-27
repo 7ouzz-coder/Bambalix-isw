@@ -5,17 +5,17 @@ import { createBusinessTestApp as createApp } from "./business-app.js";
 const payloadPersona = {
   name: "María López",
   email: "maria@example.com",
-  rut: "12.345.678-9",
+  rut: "12.345.678-5",
   phone: "+56 9 1234 5678",
-  address: "Av. Central 123",
+  address: "Av Central 123",
   clientType: "persona",
 };
 
 const payloadEmpresa = {
   name: "Eventos Spa",
   email: "contacto@eventos.cl",
-  rut: "76.543.210-K",
-  phone: "+56 2 2345 6789",
+  rut: "76.543.210-3",
+  phone: "+56 9 2345 6789",
   address: "Providencia 456",
   clientType: "empresa",
   contactName: "Carlos Gómez",
@@ -50,9 +50,30 @@ describe("Requisito 1: Gestión de clientes", () => {
       expect(response.body).toMatchObject({
         name: payloadPersona.name,
         email: payloadPersona.email,
-        rut: payloadPersona.rut,
+        rut: "12345678-5",
         clientType: "persona",
       });
+    });
+
+    it.each([
+      [{ rut: "12.345.678-9" }, 400],
+      [{ phone: "+56223456789" }, 400],
+      [{ phone: "91234567" }, 400],
+      [{ phone: "912345678" }, 201],
+      [{ phone: "+56912345678" }, 201],
+    ])("valida RUT y celular chileno al registrar %j", async (change, expected) => {
+      const { api, db } = setup();
+      const response = await api.post("/api/v1/clients").send({ ...payloadPersona, ...change });
+      expect(response.status).toBe(expected);
+      if (expected === 400) expect(db.client.create).not.toHaveBeenCalled();
+    });
+
+    it("rechaza un RUT existente aunque use otro formato", async () => {
+      const { api, db } = setup();
+      db.client.findMany.mockResolvedValue([{ id: "historico", rut: "12.345.678-5" }]);
+      const response = await api.post("/api/v1/clients").send({ ...payloadPersona, rut: "12345678-5" });
+      expect(response.status).toBe(409);
+      expect(db.client.create).not.toHaveBeenCalled();
     });
 
     it("registra un cliente empresa con su encargado de contacto", async () => {
@@ -64,6 +85,32 @@ describe("Requisito 1: Gestión de clientes", () => {
         clientType: "empresa",
         contactName: "Carlos Gómez",
       });
+    });
+
+    it("valida que la dirección sea alfanumérica y rechaza símbolos no permitidos", async () => {
+      const { api } = setup();
+      const resValido = await api.post("/api/v1/clients").send({ ...payloadPersona, address: "Av. Los Alerces #123, Depto. 4-B / Torre 1" });
+      expect(resValido.status).toBe(201);
+      const resSimboloInvalido = await api.post("/api/v1/clients").send({ ...payloadPersona, address: "Av Providencia @123 <script>" });
+      expect(resSimboloInvalido.status).toBe(400);
+      const resPatchInvalido = await api.patch("/api/v1/clients/cli_test_1").send({ address: "Calle Falsa $123" });
+      expect(resPatchInvalido.status).toBe(400);
+      const resPatchValido = await api.patch("/api/v1/clients/cli_test_1").send({ address: "Av. Providencia #1234, Depto. 402" });
+      expect(resPatchValido.status).toBe(200);
+    });
+
+    it("rechaza un celular de contacto inválido y acepta uno chileno", async () => {
+      const { api } = setup();
+      expect((await api.post("/api/v1/clients").send({ ...payloadEmpresa, contactPhone: "abc" })).status).toBe(400);
+      expect((await api.post("/api/v1/clients").send({ ...payloadEmpresa, contactPhone: "912345678" })).status).toBe(201);
+      expect((await api.patch("/api/v1/clients/cli_empresa_1").send({ contactPhone: "+56223456789" })).status).toBe(400);
+    });
+
+    it("acepta correo de contacto opcional vacío y rechaza un correo inválido", async () => {
+      const { api } = setup();
+      expect((await api.post("/api/v1/clients").send({ ...payloadEmpresa, contactEmail: "" })).status).toBe(201);
+      expect((await api.post("/api/v1/clients").send({ ...payloadEmpresa, contactEmail: "correo-no-valido" })).status).toBe(400);
+      expect((await api.patch("/api/v1/clients/cli_empresa_1").send({ contactEmail: "" })).status).toBe(200);
     });
 
     it("rechaza cliente empresa si falta el encargado de contacto", async () => {
@@ -82,7 +129,7 @@ describe("Requisito 1: Gestión de clientes", () => {
       const response = await api.post("/api/v1/clients").send({
         name: "Ana Pérez",
         email: "ana@example.com",
-        rut: "13.987.654-3",
+        rut: "13.987.654-7",
         phone: "+56912345678",
       });
       expect(response.status).toBe(201);
@@ -196,15 +243,14 @@ describe("Requisito 1: Gestión de clientes", () => {
         name: "María López Modificada",
       });
       expect(response.status).toBe(200);
-      expect(db.client.findFirst).not.toHaveBeenCalled();
       expect(db.client.update).toHaveBeenCalled();
     });
 
     it("responde 409 si se intenta cambiar el RUT al de otro cliente existente", async () => {
       const { api, db } = setup();
-      db.client.findFirst.mockResolvedValue({ id: "cli_otro", rut: "99.888.777-6" });
+      db.client.findFirst.mockResolvedValue({ id: "cli_otro", rut: "99.888.777-1" });
       const response = await api.patch("/api/v1/clients/cli_test_1").send({
-        rut: "99.888.777-6",
+        rut: "99.888.777-1",
       });
       expect(response.status).toBe(409);
       expect(response.body.message).toBe("Ya existe un cliente con ese RUT");

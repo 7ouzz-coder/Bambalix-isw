@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Boxes, RefreshCw } from "lucide-react";
+import { CurrentStatus } from "@/components/recursos/current-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,20 @@ export function EquipmentList({ revision }) {
       });
     return () => controller.abort();
   }, [revision, attempt]);
+
+  async function refreshCurrentStatus() {
+    try {
+      const result = await getEquipmentPage({ ...filters, page });
+      if (Array.isArray(result?.items)) setState(previous => ({ ...previous, items: result.items }));
+    } catch {
+      setState(previous => ({ ...previous, items: previous.items.map(item => ({ ...item, currentStatus: "UNKNOWN" })) }));
+      setNotice("No se pudo actualizar el estado. Usa Actualizar para volver a consultar.");
+    }
+  }
+  useEffect(() => {
+    const timer = setInterval(refreshCurrentStatus, 30000);
+    return () => clearInterval(timer);
+  }, [filters, page]);
 
   function search(event) {
     event.preventDefault();
@@ -83,11 +98,11 @@ export function EquipmentList({ revision }) {
       <div className="list-state"><p className="error-message" role="alert">{state.error}</p><Button variant="outline" onClick={() => setAttempt(previous => previous + 1)}>Intentar nuevamente</Button></div> : state.items.length === 0 ?
       <div className="list-state"><div className="empty-icon"><Boxes aria-hidden="true" /></div><h3>{filtered ? "No se encontraron equipos" : "Tu inventario comienza aquí"}</h3><p>{filtered ? "Prueba otro nombre, código, categoría o estado, o limpia los filtros." : <>Aún no hay equipos registrados.<br />Agrega el primero con «Registrar equipo».</>}</p></div> :
       <Table><TableHeader><TableRow><TableHead>Equipo</TableHead><TableHead>Categoría</TableHead><TableHead>Código interno</TableHead><TableHead>Estado</TableHead><TableHead>Acciones</TableHead></TableRow></TableHeader>
-        <TableBody>{state.items.map(item => <TableRow key={item.id}><TableCell className="equipment-name">{item.name}</TableCell><TableCell>{item.category}</TableCell><TableCell><span className={item.code ? "equipment-code" : "muted-code"}>{item.code || "Sin código"}</span></TableCell><TableCell>{equipmentStatusLabels[item.status] || "Sin revisar"}</TableCell><TableCell><div className="equipment-row-actions"><EquipmentStatusDialog equipment={item} onSaved={updated => {
+        <TableBody>{state.items.map(item => <TableRow key={item.id}><TableCell className="equipment-name">{item.name}</TableCell><TableCell>{item.category}</TableCell><TableCell><span className={item.code ? "equipment-code" : "muted-code"}>{item.code || "Sin código"}</span></TableCell><TableCell><CurrentStatus status={item.currentStatus || item.status} /></TableCell><TableCell><details className="equipment-actions-menu"><summary aria-label={`Acciones de ${item.name}`}>Acciones <span aria-hidden="true">⌄</span></summary><div className="equipment-row-actions"><EquipmentStatusDialog equipment={item} onSaved={updated => {
           setAttempt(previous => previous + 1);
           setNotice(`Estado de «${updated.name}» actualizado correctamente.`);
-        }} /><EquipmentEditDialog equipment={item} onSaved={updated => { setNotice(`Ficha de «${updated.name}» actualizada correctamente.`); setAttempt(previous => previous + 1); }} /><EquipmentMaintenanceDialog equipment={item} /><EquipmentAssignmentDialog equipment={item} /></div></TableCell></TableRow>)}</TableBody></Table>}
+        }} /><EquipmentEditDialog equipment={item} onSaved={updated => { setNotice(`Ficha de «${updated.name}» actualizada correctamente.`); setAttempt(previous => previous + 1); }} /><EquipmentMaintenanceDialog equipment={item} onChanged={refreshCurrentStatus} /><EquipmentAssignmentDialog equipment={item} onChanged={refreshCurrentStatus} /></div></details></TableCell></TableRow>)}</TableBody></Table>}
     {!state.error && <ListPagination page={page} pages={state.pages} disabled={state.loading} label="Páginas de equipos" onChange={next => { setPage(next); setNotice(""); }} />}
-    <div className="ledger-foot">El estado operativo no indica disponibilidad para una fecha.</div>
+    <div className="ledger-foot">El estado mostrado corresponde al momento de la consulta; los filtros usan el estado operativo registrado.</div>
   </section>;
 }

@@ -41,7 +41,11 @@ export const eventoFormSchema = z
       .refine((val) => Number(val) <= 100000, {
         message: "Los asistentes no pueden superar 100.000",
       }),
-    location: z.string().optional(),
+    location: z
+      .string({ required_error: "El lugar o espacio es obligatorio" })
+      .trim()
+      .min(1, "El lugar o espacio es obligatorio")
+      .max(200, "El lugar no puede superar 200 caracteres"),
     needs: z.string().optional(),
   })
   .refine(
@@ -84,6 +88,7 @@ export const eventoItemSchema = z
       .optional(),
     location: z.string().nullable().optional(),
     needs: z.string().nullable().optional(),
+    status: z.string().nullable().optional(),
     eventType: z
       .object({
         id: z.number().int().optional(),
