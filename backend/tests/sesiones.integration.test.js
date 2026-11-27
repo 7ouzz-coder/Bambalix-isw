@@ -23,7 +23,126 @@ describe('Sesión real y permisos', () => {
       expect((await request(app).get('/api/v1'+path).set('x-user-role','gerente')).status).toBe(401);
     }
     expect((await request(app).post('/api/v1/clients').send({role:'GERENTE'})).status).toBe(401);
-    expect((await request(app).get('/api/v1/events/public')).status).toBe(503);
+    const publicRes = await request(app).get('/api/v1/events/public');
+    expect(publicRes.status).toBe(200);
+    expect(Array.isArray(publicRes.body)).toBe(true);
+  });
+
+  it('la agenda pública responde 200 sin sesión, protege datos privados y publica solo confirmados', async () => {
+    const marker = randomUUID();
+    let client, type, unconfirmedEvent, confirmedEvent;
+    try {
+      client = await db.client.create({
+        data: {
+          name: `Cliente Privado ${marker}`,
+          email: `${marker}@cliente-privado.test`,
+          phone: "+56912345678",
+        },
+      });
+      type = await db.eventType.create({
+        data: { name: `Tipo ${marker}` },
+      });
+
+      // Evento 1: no confirmado (cotización en borrador / sin 50% verificado)
+      unconfirmedEvent = await db.event.create({
+        data: {
+          title: `Título Privado No Confirmado ${marker}`,
+          clientId: client.id,
+          eventTypeId: type.id,
+          startsAt: new Date("2033-01-10T12:00:00Z"),
+          endsAt: new Date("2033-01-10T15:00:00Z"),
+          attendees: 100,
+          location: "Ubicación Secreta 1",
+          needs: "Necesidades estrictamente confidenciales 1",
+        },
+      });
+      const quoteUnconfirmed = await db.quote.create({
+        data: {
+          code: `COT-${randomUUID().slice(0, 8)}`,
+          clientId: client.id,
+          eventId: unconfirmedEvent.id,
+          status: "EN_REVISION",
+          total: 100000,
+        },
+      });
+      await db.payment.create({
+        data: {
+          quoteId: quoteUnconfirmed.id,
+          amount: 20000,
+          method: "TRANSFERENCIA",
+          status: "REGISTRADO", // Menos del 50% y solo registrado
+        },
+      });
+
+      // Evento 2: confirmado (cotización APROBADA y pagos VERIFICADOS >= 50%)
+      confirmedEvent = await db.event.create({
+        data: {
+          title: `Título Privado Confirmado ${marker}`,
+          clientId: client.id,
+          eventTypeId: type.id,
+          startsAt: new Date("2033-02-15T14:00:00Z"),
+          endsAt: new Date("2033-02-15T18:00:00Z"),
+          attendees: 250,
+          location: "Ubicación Confidencial 2",
+          needs: "Necesidades estrictamente confidenciales 2",
+        },
+      });
+      const quoteConfirmed = await db.quote.create({
+        data: {
+          code: `COT-${randomUUID().slice(0, 8)}`,
+          clientId: client.id,
+          eventId: confirmedEvent.id,
+          status: "APROBADA",
+          total: 200000,
+        },
+      });
+      await db.payment.create({
+        data: {
+          quoteId: quoteConfirmed.id,
+          amount: 100000,
+          method: "TRANSFERENCIA",
+          status: "VERIFICADO",
+        },
+      });
+
+      // Consulta pública sin sesión
+      const res = await request(app).get("/api/v1/events/public");
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+
+      // El evento sin confirmar NO debe aparecer publicado
+      const unconfirmedFound = res.body.find((e) => e.id === unconfirmedEvent.id);
+      expect(unconfirmedFound).toBeUndefined();
+
+      // El evento confirmado sí debe aparecer publicado
+      const confirmedFound = res.body.find((e) => e.id === confirmedEvent.id);
+      expect(confirmedFound).toBeDefined();
+
+      // Debe aparecer con título genérico «Evento confirmado»
+      expect(confirmedFound.title).toBe("Evento confirmado");
+      expect(confirmedFound.title).not.toContain("Título Privado Confirmado");
+
+      // No debe exponer datos internos de clientes, asistentes, necesidades ni ubicación
+      expect(confirmedFound.client).toBeUndefined();
+      expect(confirmedFound.clientId).toBeUndefined();
+      expect(confirmedFound.attendees).toBeUndefined();
+      expect(confirmedFound.needs).toBeUndefined();
+      expect(confirmedFound.location).toBeUndefined();
+      expect(confirmedFound.quotes).toBeUndefined();
+    } finally {
+      if (confirmedEvent) {
+        await db.payment.deleteMany({ where: { quote: { eventId: confirmedEvent.id } } });
+        await db.quote.deleteMany({ where: { eventId: confirmedEvent.id } });
+        await db.event.delete({ where: { id: confirmedEvent.id } });
+      }
+      if (unconfirmedEvent) {
+        await db.payment.deleteMany({ where: { quote: { eventId: unconfirmedEvent.id } } });
+        await db.quote.deleteMany({ where: { eventId: unconfirmedEvent.id } });
+        await db.event.delete({ where: { id: unconfirmedEvent.id } });
+      }
+      if (type) await db.eventType.delete({ where: { id: type.id } });
+      if (client) await db.client.delete({ where: { id: client.id } });
+    }
   });
   it('mantiene contraseña y token protegidos; la sesión sobrevive a otra instancia de la aplicación', async () => {
     const response = await signIn(); expect(response.status).toBe(200);
