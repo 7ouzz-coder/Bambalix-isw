@@ -190,6 +190,7 @@ export function paymentService(
       }
 
       return db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('bambalix_confirmacion_agenda')) IS NOT NULL AS locked`;
         const initial = await tx.payment.findUnique({
           where: { id: paymentId },
           select: { quoteId: true },
