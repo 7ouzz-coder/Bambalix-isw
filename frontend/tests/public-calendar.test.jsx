@@ -77,3 +77,23 @@ it('hidrata sin errores aunque el servidor y el navegador cambien de mes',async(
   expect(container.querySelectorAll('.public-calendar-grid button')).toHaveLength(29);
  } finally {if(root) await act(async()=>root.unmount());container.remove();}
 });
+
+it('muestra dias ocupados recibidos desde la agenda publica y deshabilita su seleccion', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date(2028, 1, 10, 12));
+  publicService.publicAgenda.mockResolvedValue([
+    { id: 1, title: 'Evento Confirmado', startsAt: '2028-02-15T14:00:00Z', endsAt: '2028-02-15T22:00:00Z' }
+  ]);
+  const container = document.createElement('div'); document.body.append(container); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<PublicContact />));
+    const btn15 = [...container.querySelectorAll('.public-calendar-grid button')].find(b => b.textContent === '15');
+    const btn16 = [...container.querySelectorAll('.public-calendar-grid button')].find(b => b.textContent === '16');
+    expect(btn15.classList.contains('public-calendar-occupied')).toBe(true);
+    expect(btn15.disabled).toBe(true);
+    expect(btn15.getAttribute('aria-label')).toMatch(/ocupado/i);
+    expect(btn16.classList.contains('public-calendar-occupied')).toBe(false);
+    expect(btn16.disabled).toBe(false);
+    await act(async () => btn16.click());
+    expect(container.querySelector('input[name=requestedDate]').value).toBe('2028-02-16');
+  } finally { await act(async () => root.unmount()); container.remove(); }
+});
