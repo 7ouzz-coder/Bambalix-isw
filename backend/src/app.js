@@ -37,7 +37,6 @@ export function createApp({ db, webOrigin, sessionMiddleware = loadSession(db), 
   });
   app.use("/api/v1", sessionMiddleware, requireSession, csrfMiddleware, (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
   app.post("/api/v1/payments/:id/verify", blockDecision);
-  app.patch("/api/v1/operations/resources/:id/assignments/:assignmentId/replacements/:replacementId/decision", blockDecision);
   app.use("/api/v1/operations/resources", requireArea("recursos:leer", "recursos:editar"), equipmentRoutes(db));
   app.use("/api/v1/operations/vehicles", requireArea("recursos:leer", "recursos:editar"), vehicleRoutes(db));
   app.use("/api/v1/requests", requireArea("solicitudes:leer", "solicitudes:leer"), internalRequestRoutes(db));

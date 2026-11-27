@@ -16,7 +16,7 @@ function identifiedApi(user) {
   app.use(createApp({ db, webOrigin: "http://localhost:3000" }));
   return request(app);
 }
-const manager = identifiedApi({ id: "gerente-prueba", role: "gerente" });
+const manager = identifiedApi({ id: "gerente-prueba", role: "gerente", permissions: ["recursos:editar"] });
 const operations = identifiedApi({ id: "operaciones-prueba", role: "OPERACIONES" });
 const dates = { startsAt: new Date("2028-05-01T10:00:00Z"), endsAt: new Date("2028-05-01T12:00:00Z") };
 let client,type;
@@ -141,7 +141,7 @@ describe("Reemplazos de equipos", () => {
     const f=await setup(); const item=await propose(f);
     expect((await operations.patch(`${f.path}/${item.id}/decision`).send(approve)).status).toBe(403);
     expect((await identifiedApi({role:"GERENTE"}).patch(`${f.path}/${item.id}/decision`).send(approve)).status).toBe(401);
-    expect((await manager.get(f.path)).body.canDecide).toBe(false);
+    expect((await manager.get(f.path)).body.canDecide).toBe(true);
   });
   it("aprueba e intercambia las asignaciones una sola vez, conservando evento y periodo", async () => {
     const f=await setup(); const item=await propose(f);
