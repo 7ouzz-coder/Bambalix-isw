@@ -5,7 +5,7 @@ export function mantencionesController(db) {
     try {
       res.status(201).json(await crearMantencion(db, res.locals.equipmentId, req.body));
     } catch (error) {
-      if (error.status === 404 || error.status === 409) return res.status(error.status).json({ message: error.message });
+      if (error.status === 400 || error.status === 404 || error.status === 409) return res.status(error.status).json({ message: error.message });
       next(error);
     }
   }
@@ -25,7 +25,7 @@ export function mantencionesController(db) {
         const { equipmentId, maintenanceId, maintenanceAction, maintenancePage } = res.locals;
         res.status(status).json(await service(db, equipmentId, maintenanceId, maintenanceAction || maintenancePage));
       } catch (error) {
-        if (error.status === 404 || error.status === 409) return res.status(error.status).json({ message: error.message });
+        if (error.status === 400 || error.status === 404 || error.status === 409) return res.status(error.status).json({ message: error.message });
         next(error);
       }
     };

@@ -1,6 +1,6 @@
 import { resourceError } from "./disponibilidad.service.js";
 
-function validImage(mime, content) {
+export function validImage(mime, content) {
   if (!Buffer.isBuffer(content)) return false;
   if (mime === "image/png") return content.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex"));
   return mime === "image/jpeg" && content.subarray(0, 3).equals(Buffer.from("ffd8ff", "hex"))

@@ -2,12 +2,13 @@ import { z } from "zod";
 import { maintenanceSchema, maintenancePageSchema, maintenanceIdSchema, maintenanceNoteSchema, maintenanceCloseSchema } from "../schemas/mantenciones.schema.js";
 
 export function validarMantencion(req, res, next) {
-  const result = maintenanceSchema.safeParse(req.body);
+  const { photo, ...details } = req.body || {};
+  const result = maintenanceSchema.safeParse(details);
   if (!result.success) return res.status(400).json({
     message: "Revisa las fechas y el motivo de la mantención",
     fields: z.flattenError(result.error).fieldErrors,
   });
-  req.body = result.data;
+  req.body = { ...result.data, photo };
   next();
 }
 

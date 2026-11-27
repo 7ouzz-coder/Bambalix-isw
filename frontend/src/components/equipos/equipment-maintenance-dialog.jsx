@@ -21,6 +21,7 @@ function MaintenancePanel({ equipment, busy, onClose, onChanged }) {
   const [attempt, setAttempt] = useState(0);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [photo, setPhoto] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [history, setHistory] = useState({ loading: true, items: [], total: 0, pages: 1, error: "" });
   const { register, handleSubmit, reset, setError: setFieldError, formState: { errors, isSubmitting } } = useForm({
@@ -47,14 +48,23 @@ function MaintenancePanel({ equipment, busy, onClose, onChanged }) {
 
   async function submit(data) {
     if (busy.current) return;
+    if (!photo || !["image/jpeg", "image/png"].includes(photo.type) || photo.size > 2 * 1024 * 1024) {
+      setError("Selecciona una foto inicial JPEG o PNG de hasta 2 MB");
+      return;
+    }
     busy.current = true;
     setError(""); setNotice("");
     try {
+      const bytes = new Uint8Array(await photo.arrayBuffer());
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 32768) binary += String.fromCharCode(...bytes.subarray(i, i + 32768));
       await createEquipmentMaintenance(equipment.id, {
+        photo: { mime: photo.type, base64: btoa(binary) },
         startsAt: new Date(data.startsAt).toISOString(), endsAt: new Date(data.endsAt).toISOString(), reason: data.reason,
       });
       onChanged?.();
       reset(blank);
+      setPhoto(null);
       setPage(1); setAttempt(value => value + 1);
       setNotice("Periodo de mantención registrado.");
     } catch (failure) {
@@ -81,6 +91,10 @@ function MaintenancePanel({ equipment, busy, onClose, onChanged }) {
         <textarea id={`${id}-reason`} className="equipment-status-reason" rows={3} maxLength={500} {...register("reason")} disabled={isSubmitting} required aria-invalid={Boolean(errors.reason)} aria-describedby={errors.reason ? `${id}-reason-error` : undefined} />
         {errors.reason && <p id={`${id}-reason-error`} className="field-error">{errors.reason.message}</p>}
       </div>
+      <label>Foto antes de la mantención *
+        <input type="file" accept="image/jpeg,image/png" required disabled={isSubmitting}
+          onChange={event => setPhoto(event.target.files?.[0] || null)} />
+      </label>
       {error && <p role="alert" className="error-message">{error}</p>}
       {notice && <p role="status" className="equipment-status-notice">{notice}</p>}
       <div className="form-actions flex-wrap"><Button type="button" variant="outline" disabled={isSubmitting} onClick={onClose}>Cerrar</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Guardando…" : "Registrar mantención"}</Button></div>
