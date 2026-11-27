@@ -259,52 +259,56 @@ export function quoteService(db) {
         throw err;
       }
 
-      // Transición protegida contra concurrencia: solo de EN_REVISION a APROBADA
-      // Prohibido saltar directamente desde BORRADOR ni doble aprobación
-      const approverName = authUser.name || authUser.email || authUser.id;
-      const resultado = await db.quote.updateMany({
-        where: { id, status: "EN_REVISION" },
-        data: {
-          status: "APROBADA",
-          approvedBy: approverName,
-          approvedAt: new Date(),
-        },
-      });
+      return db.$transaction(async tx => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('bambalix_confirmacion_agenda')) IS NOT NULL AS locked`;
+        // Transición protegida contra concurrencia: solo de EN_REVISION a APROBADA
+        // Prohibido saltar directamente desde BORRADOR ni doble aprobación
+        const approverName = authUser.name || authUser.email || authUser.id;
+        const resultado = await tx.quote.updateMany({
+          where: { id, status: "EN_REVISION" },
+          data: {
+            status: "APROBADA",
+            approvedBy: approverName,
+            approvedAt: new Date(),
+          },
+        });
 
-      if (resultado.count === 0) {
-        const cotizacionActual = await db.quote.findUnique({ where: { id } });
-        if (!cotizacionActual) {
-          const err = new Error("Cotización no encontrada");
-          err.statusCode = 404;
-          throw err;
-        }
-        if (cotizacionActual.status === "BORRADOR") {
+        if (resultado.count === 0) {
+          const cotizacionActual = await tx.quote.findUnique({ where: { id } });
+          if (!cotizacionActual) {
+            const err = new Error("Cotización no encontrada");
+            err.statusCode = 404;
+            throw err;
+          }
+          if (cotizacionActual.status === "BORRADOR") {
+            const err = new Error(
+              "Transición inválida: una cotización debe enviarse a revisión antes de ser aprobada",
+            );
+            err.statusCode = 400;
+            throw err;
+          }
+          if (cotizacionActual.status === "APROBADA") {
+            const err = new Error("La cotización ya fue aprobada previamente");
+            err.statusCode = 400;
+            throw err;
+          }
           const err = new Error(
-            "Transición inválida: una cotización debe enviarse a revisión antes de ser aprobada",
+            `No se puede aprobar una cotización en estado ${cotizacionActual.status}`,
           );
           err.statusCode = 400;
           throw err;
         }
-        if (cotizacionActual.status === "APROBADA") {
-          const err = new Error("La cotización ya fue aprobada previamente");
-          err.statusCode = 400;
-          throw err;
-        }
-        const err = new Error(
-          `No se puede aprobar una cotización en estado ${cotizacionActual.status}`,
-        );
-        err.statusCode = 400;
-        throw err;
-      }
 
-      return db.quote.findUnique({
-        where: { id },
-        include: {
-          client: { select: { id: true, name: true } },
-          event: { select: { id: true, title: true } },
-          items: true,
-        },
+        return tx.quote.findUnique({
+          where: { id },
+          include: {
+            client: { select: { id: true, name: true } },
+            event: { select: { id: true, title: true } },
+            items: true,
+          },
+        });
       });
+
     },
   };
 }

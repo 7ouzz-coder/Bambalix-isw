@@ -11,11 +11,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getQuotes, submitQuoteForReview } from "@/services/cotizaciones";
+import { approveQuote, getQuotes, submitQuoteForReview } from "@/services/cotizaciones";
+import { useSession } from "@/components/sesion/session-gate";
 import { QuoteForm } from "./quote-form";
 import styles from "./quote-list.module.css";
 
 export function QuoteList({ revision, onStatusChanged }) {
+  const user = useSession();
+  const canApprove = user?.role === "GERENTE" && user.permissions.includes("cotizaciones:editar");
   const [state, setState] = useState({ loading: true, items: [], error: "" });
   const [attempt, setAttempt] = useState(0);
   const [selectedQuote, setSelectedQuote] = useState(null);
@@ -37,15 +40,15 @@ export function QuoteList({ revision, onStatusChanged }) {
     return () => controller.abort();
   }, [revision, attempt]);
 
-  async function handleSendToReview(quoteId) {
+  async function changeQuoteStatus(quoteId, action, message) {
     setActionLoading(quoteId);
     try {
-      const updated = await submitQuoteForReview(quoteId);
+      const updated = await action(quoteId);
       setState((prev) => ({
         ...prev,
-        items: prev.items.map((q) => (q.id === quoteId ? { ...q, status: updated.status } : q)),
+        items: prev.items.map((q) => (q.id === quoteId ? { ...q, ...updated } : q)),
       }));
-      if (onStatusChanged) onStatusChanged(`Cotización ${updated.code || quoteId} enviada a revisión.`);
+      if (onStatusChanged) onStatusChanged(`Cotización ${updated.code || quoteId} ${message}.`);
     } catch (err) {
       alert(err.message);
     } finally {
@@ -68,9 +71,6 @@ export function QuoteList({ revision, onStatusChanged }) {
 
   return (
     <section className={`equipment-ledger ${styles.ledger}`} aria-labelledby="quotes-list-heading" aria-busy={state.loading}>
-      <p className="p-4 text-sm text-muted-foreground">
-        La aprobación de cotizaciones no está disponible.
-      </p>
       <div className="ledger-header">
         <div>
           <h2 id="quotes-list-heading">Cotizaciones comerciales</h2>
@@ -161,7 +161,7 @@ export function QuoteList({ revision, onStatusChanged }) {
                         variant="outline"
                         size="sm"
                         disabled={actionLoading === quote.id}
-                        onClick={() => handleSendToReview(quote.id)}
+                        onClick={() => changeQuoteStatus(quote.id, submitQuoteForReview, "enviada a revisión")}
                         title="Enviar cotización a revisión gerencial"
                       >
                         <Send className="w-3.5 h-3.5 mr-1 text-blue-600" />
@@ -169,13 +169,13 @@ export function QuoteList({ revision, onStatusChanged }) {
                       </Button>
                     )}
 
-                    {quote.status === "EN_REVISION" && (
+                    {canApprove && quote.status === "EN_REVISION" && (
                       <Button
                         variant="default"
                         size="sm"
-                        disabled
+                        disabled={Boolean(actionLoading)}
+                        onClick={() => changeQuoteStatus(quote.id, approveQuote, "aprobada")}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                        title="Aprobación no disponible"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                         Aprobar

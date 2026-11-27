@@ -1,7 +1,43 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { publicAgenda, sendPublicRequest } from "@/services/publico";
 import { PublicCalendar } from "./public-calendar";
+
+export function computeOccupiedDatesFromEvents(items = []) {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santiago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const dates = new Set();
+  for (const item of items) {
+    if (!item?.startsAt || !item?.endsAt) continue;
+    const start = new Date(item.startsAt);
+    const end = new Date(item.endsAt);
+    const effectiveEnd = end.getTime() > start.getTime() ? new Date(end.getTime() - 1) : end;
+
+    const startDayStr = formatter.format(start);
+    const endDayStr = formatter.format(effectiveEnd);
+
+    const parts = startDayStr.split("-").map(Number);
+    let y = parts[0], m = parts[1], d = parts[2];
+
+    while (true) {
+      const curStr = [y, String(m).padStart(2, "0"), String(d).padStart(2, "0")].join("-");
+      dates.add(curStr);
+      if (curStr === endDayStr) break;
+      const dt = new Date(Date.UTC(y, m - 1, d + 1));
+      y = dt.getUTCFullYear();
+      m = dt.getUTCMonth() + 1;
+      d = dt.getUTCDate();
+    }
+  }
+
+  return Array.from(dates).sort();
+}
 function requestKey() {
  if (!globalThis.crypto?.getRandomValues) throw new Error("No pudimos preparar tu solicitud. Intenta desde un navegador actualizado.");
  if (globalThis.crypto.randomUUID) return globalThis.crypto.randomUUID();
@@ -44,9 +80,10 @@ export function PublicContact() {
   catch (failure) { setError(failure.message || "No pudimos enviar tu solicitud. Intenta nuevamente."); }
   finally { sending.current = false; setBusy(false); }
  }
+ const occupiedDates = useMemo(() => computeOccupiedDatesFromEvents(agenda.items), [agenda.items]);
  return <div className="public-contact-grid">
   <section id="agenda" aria-labelledby="public-agenda-heading"><p className="public-eyebrow">ANTES DE EMPEZAR</p><h2 id="public-agenda-heading">Una fecha para tu evento.</h2><p>Elige una fecha de interés para tu solicitud.</p>
-   <PublicCalendar selectedDate={requestedDate} onSelect={setRequestedDate} disabled={busy} />
+   <PublicCalendar selectedDate={requestedDate} onSelect={setRequestedDate} occupiedDates={occupiedDates} disabled={busy} />
    <p className="public-calendar-notice">La disponibilidad de estas fechas aún no está confirmada. Elegir una fecha no la reserva.</p>
    {agenda.loading ? <p role="status">Consultando agenda…</p> : agenda.error ? <div className="public-agenda-message"><p role="status">{agenda.error}</p><button type="button" onClick={() => setAttempt(value => value + 1)}>Consultar nuevamente</button></div> : <><p>Eventos confirmados. Enviar una solicitud no reserva la fecha.</p>{agenda.items.length ? <ul>{agenda.items.map(item => <li key={item.id}><time dateTime={item.startsAt}>{new Date(item.startsAt).toLocaleDateString("es-CL")}</time> · {item.title}</li>)}</ul> : <p>No hay eventos publicados. Consulta la disponibilidad con la productora.</p>}</>}
   </section>

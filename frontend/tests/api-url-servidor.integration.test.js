@@ -28,7 +28,8 @@ it.each(['http://127.0.0.1:55508','http://127.0.0.1:55508/','http://127.0.0.1:55
  expect((await session.currentSession()).id).toBe(user.id);
  for (const result of await Promise.all([clients.clientRequest(),quotes.quoteRequest(),events.getEventos(),payments.paymentRequest(),equipment.equipmentRequest(),vehicles.listVehicles()])) expect(result).toBeDefined();
  expect((await inbox.listRequests(1)).items).toBeInstanceOf(Array);
- await expect(publicSite.publicAgenda()).rejects.toThrow('la productora la revisará');
+ const agenda = await publicSite.publicAgenda();
+ expect(agenda).toBeInstanceOf(Array);
  for(const [method,path] of [['POST','quotes/x/approve'],['POST','payments/x/verify'],['PATCH','operations/resources/x/assignments/y/replacements/z/decision']]) {
   const r=await realFetch(`http://127.0.0.1:55508/api/v1/${path}`,{method,headers:{Cookie:cookie,'x-csrf-token':csrf,'content-type':'application/json'},body:'{}'}); expect(r.status).toBe(403);
  }

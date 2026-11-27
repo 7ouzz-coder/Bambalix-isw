@@ -16,8 +16,9 @@ function identifiedApi(user) {
   app.use(createApp({ db, webOrigin: "http://localhost:3000" }));
   return request(app);
 }
-const manager = identifiedApi({ id: "gerente-prueba", role: "gerente" });
+const manager = identifiedApi({ id: "gerente-prueba", role: "gerente", permissions: ["recursos:editar"] });
 const operations = identifiedApi({ id: "operaciones-prueba", role: "OPERACIONES" });
+const photo = { mime: "image/png", base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=" };
 const dates = { startsAt: new Date("2028-05-01T10:00:00Z"), endsAt: new Date("2028-05-01T12:00:00Z") };
 let client,type;
 const ownedResourceIds = [];
@@ -141,7 +142,7 @@ describe("Reemplazos de equipos", () => {
     const f=await setup(); const item=await propose(f);
     expect((await operations.patch(`${f.path}/${item.id}/decision`).send(approve)).status).toBe(403);
     expect((await identifiedApi({role:"GERENTE"}).patch(`${f.path}/${item.id}/decision`).send(approve)).status).toBe(401);
-    expect((await manager.get(f.path)).body.canDecide).toBe(false);
+    expect((await manager.get(f.path)).body.canDecide).toBe(true);
   });
   it("aprueba e intercambia las asignaciones una sola vez, conservando evento y periodo", async () => {
     const f=await setup(); const item=await propose(f);
@@ -175,7 +176,7 @@ describe("Reemplazos de equipos", () => {
     const base=`/api/v1/operations/resources/${f.target.id}`;
     const period={startsAt:dates.startsAt.toISOString(),endsAt:dates.endsAt.toISOString()};
     expect((await api.post(`${base}/assignments`).send({...period,eventId:f.event.id})).status).toBe(409);
-    expect((await api.post(`${base}/maintenances`).send({...period,reason:"Revisión del sustituto"})).status).toBe(409);
+    expect((await api.post(`${base}/maintenances`).send({...period,reason:"Revisión del sustituto",photo})).status).toBe(409);
     expect((await api.get(`${base}/availability`).query(period)).body.available).toBe(false);
     const source=`/api/v1/operations/resources/${f.source.id}`;
     expect((await api.get(`${source}/availability`).query(period)).body.available).toBe(true);
@@ -224,7 +225,7 @@ describe("Reemplazos de equipos", () => {
   it.each(["assignments","maintenances"])("una carrera con %s guarda solo una ocupación del sustituto", async operation => {
     const f=await setup(); const item=await propose(f);
     const period={startsAt:dates.startsAt.toISOString(),endsAt:dates.endsAt.toISOString()};
-    const competing=operation==="assignments" ? {...period,eventId:f.event.id} : {...period,reason:"Revisión programada"};
+    const competing=operation==="assignments" ? {...period,eventId:f.event.id} : {...period,reason:"Revisión programada",photo};
     const [decision,occupation]=await Promise.all([
       manager.patch(`${f.path}/${item.id}/decision`).send(approve),
       api.post(`/api/v1/operations/resources/${f.target.id}/${operation}`).send(competing),

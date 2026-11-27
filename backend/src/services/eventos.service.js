@@ -1,4 +1,74 @@
+import { Prisma } from "@prisma/client";
 import { coordinarReprogramacionSchema } from "../schemas/eventos.schema.js";
+
+const SANTIAGO_TIMEZONE = "America/Santiago";
+const santiagoDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: SANTIAGO_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * Determina si una cotización cumple con la regla de confirmación comercial:
+ * - Status APROBADA
+ * - Total mayor que cero
+ * - Suma de pagos en estado VERIFICADO >= 50% de su total (usando Prisma.Decimal)
+ */
+export function isQuoteConfirmed(quote) {
+  if (!quote || quote.status !== "APROBADA") return false;
+  const total = new Prisma.Decimal(quote.total || 0);
+  if (!total.isFinite() || total.lessThanOrEqualTo(0)) return false;
+
+  const halfTotal = total.dividedBy(2);
+  const verifiedPaymentsSum = (quote.payments || [])
+    .filter((p) => p.status === "VERIFICADO")
+    .reduce((sum, p) => sum.plus(new Prisma.Decimal(p.amount || 0)), new Prisma.Decimal(0));
+
+  return verifiedPaymentsSum.greaterThanOrEqualTo(halfTotal);
+}
+
+/**
+ * Determina el estado comercial real del evento:
+ * - "CONFIRMADO": Al menos una de sus cotizaciones está aprobada y con >= 50% verificado.
+ * - "POR_CONFIRMAR": En cualquier otro caso.
+ */
+export function computeEventStatus(event) {
+  if (!event || !Array.isArray(event.quotes) || event.quotes.length === 0) {
+    return "POR_CONFIRMAR";
+  }
+  const hasConfirmedQuote = event.quotes.some((quote) => isQuoteConfirmed(quote));
+  return hasConfirmedQuote ? "CONFIRMADO" : "POR_CONFIRMAR";
+}
+
+/**
+ * Obtiene el conjunto de fechas (YYYY-MM-DD) ocupadas por un evento en horario de Santiago.
+ * Regla: Un evento confirmado ocupa el día completo en el calendario público.
+ * Si el evento termina exactamente a medianoche (00:00:00), no ocupa el nuevo día.
+ */
+export function getEventOccupiedDates(startsAt, endsAt) {
+  const start = new Date(startsAt);
+  const end = new Date(endsAt);
+  const effectiveEnd = end.getTime() > start.getTime() ? new Date(end.getTime() - 1) : end;
+
+  const startDayStr = santiagoDateFormatter.format(start);
+  const endDayStr = santiagoDateFormatter.format(effectiveEnd);
+
+  const days = [];
+  const parts = startDayStr.split("-").map(Number);
+  let y = parts[0], m = parts[1], d = parts[2];
+
+  while (true) {
+    const curStr = [y, String(m).padStart(2, "0"), String(d).padStart(2, "0")].join("-");
+    days.push(curStr);
+    if (curStr === endDayStr) break;
+    const dt = new Date(Date.UTC(y, m - 1, d + 1));
+    y = dt.getUTCFullYear();
+    m = dt.getUTCMonth() + 1;
+    d = dt.getUTCDate();
+  }
+  return days;
+}
 
 export class NotFoundError extends Error {
   constructor(message) {
@@ -176,13 +246,36 @@ export async function listEventos(db, filters = {}) {
     orderBy = { startsAt: "asc" };
   }
 
-  return db.event.findMany({
+  const eventos = await db.event.findMany({
     where,
     include: {
       client: { select: { id: true, name: true } },
       eventType: { select: { id: true, name: true } },
+      quotes: {
+        select: {
+          id: true,
+          status: true,
+          total: true,
+          payments: {
+            select: {
+              id: true,
+              amount: true,
+              status: true,
+            },
+          },
+        },
+      },
     },
     orderBy,
+  });
+
+  return eventos.map((ev) => {
+    const computedStatus = computeEventStatus(ev);
+    const { quotes, ...rest } = ev;
+    return {
+      ...rest,
+      status: computedStatus,
+    };
   });
 }
 
@@ -195,19 +288,52 @@ export async function listTiposEvento(db) {
 /**
  * Consulta de agenda externa / pública para clientes.
  *
- * El calendario público debe mostrar únicamente eventos confirmados para no
- * publicar eventos en estado de borrador, cotización o pendientes de confirmación.
- * Dado que el modelo de datos todavía no cuenta con un campo/estado formal de
- * confirmación comercial acordado ni migrado, la publicación de eventos en la agenda
- * pública se mantiene deshabilitada de forma controlada y explícita, sin publicar
- * registros cuya confirmación no puede acreditarse y sin exigir login a los clientes.
+ * Muestra como ocupados los días de los eventos confirmados.
+ * Un evento se considera confirmado cuando una misma cotización está aprobada
+ * y sus abonos verificados alcanzan al menos el 50% de su total.
+ * Devuelve únicamente los campos públicos necesarios para el calendario (id, title, startsAt, endsAt).
+ * No expone cliente, correo, teléfono, asistentes ni necesidades internas.
  */
 export async function listEventosPublicos(db, filters = {}) {
-  // Mientras no exista el contrato real y modelo de confirmación comercial,
-  // la publicación de eventos permanece deshabilitada de forma explícita y controlada (503).
-  throw new ServiceUnavailableError(
-    "La publicación de la agenda pública se encuentra temporalmente deshabilitada hasta definir el contrato de confirmación de eventos."
-  );
+  const where = {};
+  let orderBy = { startsAt: "asc" };
+
+  if (filters.from && filters.to) {
+    where.startsAt = { lt: new Date(filters.to) };
+    where.endsAt = { gt: new Date(filters.from) };
+  }
+
+  const events = await db.event.findMany({
+    where,
+    include: {
+      quotes: {
+        select: {
+          id: true,
+          status: true,
+          total: true,
+          payments: {
+            select: {
+              id: true,
+              amount: true,
+              status: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy,
+  });
+
+  // Filtrar estrictamente solo eventos confirmados según regla comercial real
+  const confirmedEvents = events.filter((ev) => computeEventStatus(ev) === "CONFIRMADO");
+
+  // Proyectar solo los campos públicos sin datos privados ni título interno
+  return confirmedEvents.map((ev) => ({
+    id: ev.id,
+    title: "Evento confirmado",
+    startsAt: ev.startsAt instanceof Date ? ev.startsAt.toISOString() : new Date(ev.startsAt).toISOString(),
+    endsAt: ev.endsAt instanceof Date ? ev.endsAt.toISOString() : new Date(ev.endsAt).toISOString(),
+  }));
 }
 
 export async function updateEvento(db, id, datos, options = {}) {

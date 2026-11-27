@@ -4,10 +4,14 @@ import { useEffect, useState } from "react";
 import { Banknote, CheckCircle, CreditCard, DollarSign, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { downloadPaymentReceipt, getPayments } from "@/services/pagos";
+import { downloadPaymentReceipt, getPayments, verifyPayment } from "@/services/pagos";
+import { useSession } from "@/components/sesion/session-gate";
 import styles from "./payment-list.module.css";
 
 export function PaymentList({ revision }) {
+  const user = useSession();
+  const canVerify = user?.role === "GERENTE" && user.permissions.includes("pagos:registrar");
+  const [verifying, setVerifying] = useState(null);
   const [state, setState] = useState({ loading: true, items: [], error: "" });
   const [receiptError, setReceiptError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -28,11 +32,21 @@ export function PaymentList({ revision }) {
     return () => controller.abort();
   }, [revision, attempt]);
 
+  async function handleVerify(id) {
+    setVerifying(id);
+    setReceiptError("");
+    try {
+      await verifyPayment(id);
+      setAttempt(value => value + 1);
+    } catch (error) {
+      setReceiptError(error.message);
+    } finally {
+      setVerifying(null);
+    }
+  }
+
   return (
     <section className={`equipment-ledger ${styles.ledger}`} aria-labelledby="payments-list-heading" aria-busy={state.loading}>
-      <p className="p-4 text-sm text-muted-foreground">
-        La verificación de pagos no está disponible.
-      </p>
       {receiptError && <p role="alert" className="error-message">{receiptError}</p>}
       <div className="ledger-header">
         <div>
@@ -151,17 +165,17 @@ export function PaymentList({ revision }) {
                       <span className="text-xs text-muted-foreground" title={`Verificado por ${payment.verifiedBy || "Tesorería"}`}>
                         {payment.verifiedBy || "Verificado"}
                       </span>
-                    ) : (
+                    ) : canVerify ? (
                       <Button
                         size="sm"
-                        disabled
+                        disabled={Boolean(verifying)}
+                        onClick={() => handleVerify(payment.id)}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs px-2.5"
-                        title="Verificación no disponible"
                       >
                         <CheckCircle className="w-3.5 h-3.5 mr-1" />
                         Verificar
                       </Button>
-                    )}
+                    ) : <span>Pendiente</span>}
                   </TableCell>
                 </TableRow>
               );

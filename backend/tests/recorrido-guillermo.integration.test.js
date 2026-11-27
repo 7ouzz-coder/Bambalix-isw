@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import request from "supertest";
 import { expect, it } from "vitest";
@@ -11,6 +11,8 @@ const localTest = url && new URL(url).hostname === "127.0.0.1" && new URL(url).p
 it.skipIf(!localTest)("ejecuta el recorrido de Operaciones con sesiones y PostgreSQL", async () => {
   const db = new PrismaClient({ datasources: { db: { url } } });
   const suffix = randomUUID();
+  const plate = Array.from({ length: 4 }, () => String.fromCharCode(65 + randomInt(26))).join("") +
+    String(randomInt(100)).padStart(2, "0");
   const password = "OperacionesQAPrueba123!";
   const origin = "http://localhost:3000";
   const app = createApp({ db, webOrigin: origin, secureCookies: false });
@@ -20,13 +22,13 @@ it.skipIf(!localTest)("ejecuta el recorrido de Operaciones con sesiones y Postgr
   const start = new Date(Date.now() - 60000).toISOString();
   const end = new Date(Date.now() + 3600000).toISOString();
   const period = { startsAt: start, endsAt: end };
-  let equipment, vehicle, event, type, client;
+  let equipment, alternative, vehicle, event, type, client;
   const users = [];
 
-  async function login(tag, permissions) {
+  async function login(tag, permissions, role = "INTERNO") {
     const email = tag.toLowerCase() + suffix + "@example.test";
     const user = await db.internalUser.create({
-      data: { name: tag, email, role: "INTERNO", permissions, passwordHash: await hashPassword(password) },
+      data: { name: tag, email, role, permissions, passwordHash: await hashPassword(password) },
     });
     users.push(user.id);
     const agent = request.agent(app);
@@ -46,9 +48,9 @@ it.skipIf(!localTest)("ejecuta el recorrido de Operaciones con sesiones y Postgr
     await commercial.agent.get(resources).expect(403);
     await write(writer.agent.post(vehicles)).send({ name: "Furgón QA", type: "Furgón", plate: "ABC123" }).expect(400);
     vehicle = (await write(writer.agent.post(vehicles)).send({
-      name: "Furgón QA " + suffix, type: "Furgón", plate: "QB-47-11", status: "OPERATIONAL",
+      name: "Furgón QA " + suffix, type: "Furgón", plate, status: "OPERATIONAL",
     }).expect(201)).body;
-    expect(vehicle.plate).toBe("QB4711");
+    expect(vehicle.plate).toBe(plate);
     equipment = (await write(writer.agent.post(resources)).send({
       name: "Equipo QA " + suffix, category: "Audio QA " + suffix, mode: "UNIT", quantity: 1,
     }).expect(201)).body;
@@ -69,14 +71,25 @@ it.skipIf(!localTest)("ejecuta el recorrido de Operaciones con sesiones y Postgr
     expect(initial.body.vehiculos.some(item => item.id === vehicle.id)).toBe(true);
     await write(writer.agent.post(vehiclePath + "/maintenances")).send({ ...period, endsAt: start, reason: "Inválido" }).expect(400);
     await write(writer.agent.post(vehiclePath + "/maintenances")).send({ ...period, reason: "Mantención QA" }).expect(201);
-    const maintenance = (await write(writer.agent.post(equipmentPath + "/maintenances")).send({ ...period, reason: "Mantención QA" }).expect(201)).body;
-    const photo = equipmentPath + "/maintenances/" + maintenance.id + "/photos/";
     const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
+    const before = { mime: "image/png", base64: image.toString("base64") };
+    await write(writer.agent.post(equipmentPath + "/maintenances")).send({ ...period, reason: "Mantención QA" }).expect(400);
+    const maintenance = (await write(writer.agent.post(equipmentPath + "/maintenances")).send({ ...period, reason: "Mantención QA", photo: before }).expect(201)).body;
+    const photo = equipmentPath + "/maintenances/" + maintenance.id + "/photos/";
+    await write(writer.agent.patch(equipmentPath + "/maintenances/" + maintenance.id + "/close")).send({ closingNotes: "Mantención completada" }).expect(409);
     await write(writer.agent.post(photo + "before")).type("png").send(Buffer.from("texto")).expect(400);
     for (const stage of ["before", "after"]) {
       await write(writer.agent.post(photo + stage)).type("png").send(image).expect(204);
       expect((await reader.agent.get(photo + stage).expect(200)).body).toEqual(image);
     }
+    await write(writer.agent.patch(equipmentPath + "/maintenances/" + maintenance.id + "/close")).send({ closingNotes: "Mantención completada" }).expect(200);
+    const legacy = await db.equipmentMaintenance.create({ data: {
+      resourceId: equipment.id, startsAt: new Date(start), endsAt: new Date(end), reason: "Mantención anterior",
+    } });
+    const legacyPath = equipmentPath + "/maintenances/" + legacy.id;
+    await write(writer.agent.patch(legacyPath + "/close")).send({ closingNotes: "Trabajo anterior completo" }).expect(409);
+    await write(writer.agent.post(legacyPath + "/photos/after")).type("png").send(image).expect(204);
+    await write(writer.agent.patch(legacyPath + "/close")).send({ closingNotes: "Trabajo anterior completo" }).expect(200);
     const busy = await commercial.agent.get(availability).expect(200);
     expect(busy.body.equipos.some(item => item.id === equipment.id)).toBe(false);
     expect(busy.body.vehiculos.some(item => item.id === vehicle.id)).toBe(false);
@@ -91,10 +104,38 @@ it.skipIf(!localTest)("ejecuta el recorrido de Operaciones con sesiones y Postgr
     await write(writer.agent.post(incidents)).send({ description: "Equipo perdió señal" }).expect(201);
     expect((await reader.agent.get(incidents).expect(200)).body[0].description).toBe("Equipo perdió señal");
     await write(writer.agent.patch(equipmentPath + "/assignments/" + assignment.id + "/replacements/qa/decision")).send({}).expect(403);
+    alternative = await db.resource.create({ data: {
+      name: "Alternativa " + suffix, category: equipment.category, status: "OPERATIONAL",
+    } });
+    const replacements = equipmentPath + "/assignments/" + assignment.id + "/replacements";
+    const propose = () => write(writer.agent.post(replacements)).send({
+      proposedResourceId: alternative.id, reason: "Equipo perdió señal",
+    }).expect(201);
+    const manager = await login("Gerente", ["recursos:leer", "recursos:editar"], "GERENTE");
+    const rejectedProposal = (await propose()).body;
+    expect((await manager.agent.get(replacements).expect(200)).body.canDecide).toBe(true);
+    expect((await writer.agent.get(replacements).expect(200)).body.canDecide).toBe(false);
+    const rejected = await manager.agent.patch(replacements + "/" + rejectedProposal.id + "/decision")
+      .set("X-CSRF-Token", manager.csrf).send({ status: "REJECTED", reason: "Revisar otra alternativa" }).expect(200);
+    expect(rejected.body).toMatchObject({ status: "REJECTED", resultingAssignmentId: null });
+    expect((await db.equipmentAssignment.findUniqueOrThrow({ where: { id: assignment.id } })).releasedAt).toBeNull();
+    const proposal = (await propose()).body;
+    const decisionPath = replacements + "/" + proposal.id + "/decision";
+    const decision = { status: "APPROVED", reason: "Alternativa disponible" };
+    await manager.agent.patch(decisionPath).send(decision).expect(403);
+    const approved = (await manager.agent.patch(decisionPath).set("X-CSRF-Token", manager.csrf).send(decision).expect(200)).body;
+    expect(approved.status).toBe("APPROVED");
+    expect((await db.equipmentAssignment.findUniqueOrThrow({ where: { id: assignment.id } })).releasedAt).toBeTruthy();
+    expect(await db.equipmentAssignment.findUniqueOrThrow({ where: { id: approved.resultingAssignmentId } })).toMatchObject({
+      eventId: event.id, resourceId: alternative.id, releasedAt: null,
+    });
     await write(writer.agent.delete(vehiclePath)).expect(409);
   } finally {
     if (equipment) {
       const where = { resourceId: equipment.id };
+      await db.equipmentReplacement.deleteMany({ where: { assignment: where } });
+      if (alternative) await db.equipmentAssignment.deleteMany({ where: { resourceId: alternative.id } });
+      if (alternative) await db.resource.delete({ where: { id: alternative.id } });
       await db.equipmentIncident.deleteMany({ where: { assignment: where } });
       await db.equipmentAssignment.deleteMany({ where });
       await db.equipmentMaintenance.deleteMany({ where });

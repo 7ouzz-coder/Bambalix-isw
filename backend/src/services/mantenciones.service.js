@@ -1,3 +1,4 @@
+import { validImage } from "./evidencia-equipos.service.js";
 import { bloquearEquipo, periodoOcupado, resourceError } from "./disponibilidad.service.js";
 
 async function comprobarEquipo(db, id) {
@@ -10,6 +11,11 @@ async function comprobarEquipo(db, id) {
 }
 
 export function crearMantencion(db, resourceId, data) {
+  const photo = data.photo;
+  const content = typeof photo?.base64 === "string" ? Buffer.from(photo.base64, "base64") : null;
+  if (!content || !content.length || content.length > 2 * 1024 * 1024 || !validImage(photo.mime, content)) {
+    throw resourceError("Selecciona una foto inicial JPEG o PNG de hasta 2 MB", 400);
+  }
   return db.$transaction(async tx => {
     await bloquearEquipo(tx, resourceId);
     const startsAt = new Date(data.startsAt);
@@ -20,6 +26,7 @@ export function crearMantencion(db, resourceId, data) {
     if (assigned) throw resourceError("El periodo cruza una asignación activa. Libera el equipo antes de registrar la mantención", 409);
     return tx.equipmentMaintenance.create({ data: {
       resourceId, startsAt, endsAt, reason: data.reason,
+      photos: { create: { stage: "before", mime: photo.mime, content } },
     } });
   });
 }
@@ -62,6 +69,10 @@ export function agregarNotaMantencion(db, resourceId, maintenanceId, { content }
 export function cerrarMantencion(db, resourceId, maintenanceId, { closingNotes }) {
   return db.$transaction(async tx => {
     await mantencionAbierta(tx, resourceId, maintenanceId);
+    const after = await tx.equipmentMaintenancePhoto.findUnique({
+      where: { maintenanceId_stage: { maintenanceId, stage: "after" } }, select: { maintenanceId: true },
+    });
+    if (!after) throw resourceError("Guarda la foto posterior antes de cerrar la mantención", 409);
     return tx.equipmentMaintenance.update({
       where: { id: maintenanceId }, data: { closedAt: new Date(), closingNotes },
     });

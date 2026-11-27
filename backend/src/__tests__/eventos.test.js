@@ -203,6 +203,20 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
         include: {
           client: { select: { id: true, name: true } },
           eventType: { select: { id: true, name: true } },
+          quotes: {
+            select: {
+              id: true,
+              status: true,
+              total: true,
+              payments: {
+                select: {
+                  id: true,
+                  amount: true,
+                  status: true,
+                },
+              },
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
       });
@@ -240,6 +254,20 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
         include: {
           client: { select: { id: true, name: true } },
           eventType: { select: { id: true, name: true } },
+          quotes: {
+            select: {
+              id: true,
+              status: true,
+              total: true,
+              payments: {
+                select: {
+                  id: true,
+                  amount: true,
+                  status: true,
+                },
+              },
+            },
+          },
         },
         orderBy: { startsAt: "asc" },
       });
@@ -267,35 +295,66 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
   });
 
   describe("GET /api/v1/events/public", () => {
-    it("informa la indisponibilidad explícita y controlada (503) mientras no exista el contrato de confirmación", async () => {
-      // Incluso si existen eventos en la base de datos cuya confirmación comercial no puede acreditarse
+    it("retorna solo eventos confirmados y no expone datos privados (200)", async () => {
       mockDb.event.findMany.mockResolvedValue([
         {
           id: 1,
-          title: "Evento Pendiente",
+          title: "Evento Confirmado Aprobado y Pagado",
           startsAt: new Date("2026-12-01T10:00:00Z"),
-          endsAt: new Date("2026-12-01T12:00:00Z"),
+          endsAt: new Date("2026-12-01T14:00:00Z"),
           location: "Parque Central",
+          attendees: 50,
+          needs: "Audio",
+          quotes: [
+            {
+              id: "q1",
+              status: "APROBADA",
+              total: 100000,
+              payments: [{ id: "p1", amount: 50000, status: "VERIFICADO" }],
+            },
+          ],
+        },
+        {
+          id: 2,
+          title: "Evento Pendiente Menos del 50%",
+          startsAt: new Date("2026-12-02T10:00:00Z"),
+          endsAt: new Date("2026-12-02T14:00:00Z"),
+          location: "Salón Sur",
+          quotes: [
+            {
+              id: "q2",
+              status: "APROBADA",
+              total: 100000,
+              payments: [{ id: "p2", amount: 49999, status: "VERIFICADO" }],
+            },
+          ],
         },
       ]);
 
       const response = await request(app).get("/api/v1/events/public");
 
-      expect(response.status).toBe(503);
-      expect(response.body.unavailable).toBe(true);
-      expect(response.body.message).toContain("temporalmente deshabilitada");
-      // No expone ni consulta los registros históricos como confirmados
-      expect(mockDb.event.findMany).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body).toHaveLength(1);
+      expect(response.body[0].id).toBe(1);
+      expect(response.body[0].title).toBe("Evento confirmado");
+      expect(response.body[0].startsAt).toBe("2026-12-01T10:00:00.000Z");
+      expect(response.body[0].endsAt).toBe("2026-12-01T14:00:00.000Z");
+      // Protege datos privados y título interno:
+      expect(response.body[0].title).not.toBe("Evento Confirmado Aprobado y Pagado");
+      expect(response.body[0].client).toBeUndefined();
+      expect(response.body[0].attendees).toBeUndefined();
+      expect(response.body[0].needs).toBeUndefined();
+      expect(response.body[0].location).toBeUndefined();
+      expect(response.body[0].quotes).toBeUndefined();
     });
 
-    it("permite la consulta pública sin requerir sesión y no expone datos privados", async () => {
+    it("permite la consulta pública sin requerir sesión y devuelve arreglo vacío si no hay confirmados", async () => {
+      mockDb.event.findMany.mockResolvedValue([]);
       const response = await request(app).get("/api/v1/events/public");
 
-      // No exige cabeceras de autorización ni cookie de sesión
-      expect(response.status).toBe(503);
-      expect(response.body.client).toBeUndefined();
-      expect(response.body.attendees).toBeUndefined();
-      expect(response.body.needs).toBeUndefined();
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([]);
     });
 
     it("valida periodos en la consulta pública y rechaza rango invertido con 400 antes de responder", async () => {
