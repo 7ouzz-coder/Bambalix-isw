@@ -342,7 +342,7 @@ describe("Requisito 2: Elaboración de cotizaciones", () => {
 
       expect(response.status).toBe(403);
       expect(response.body.message).toContain(
-        "permanece bloqueada",
+        "solo un usuario con rol de gerente",
       );
       expect(db.quote.updateMany).not.toHaveBeenCalled();
     });
@@ -354,7 +354,7 @@ describe("Requisito 2: Elaboración de cotizaciones", () => {
         .send({});
 
       expect(response.status).toBe(403);
-      expect(response.body.message).toContain("permanece bloqueada");
+      expect(response.body.message).toContain("solo un usuario con rol de gerente");
       expect(db.quote.updateMany).not.toHaveBeenCalled();
     });
   });
