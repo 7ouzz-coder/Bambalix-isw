@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import request from "supertest";
 import { expect, it } from "vitest";
@@ -11,6 +11,8 @@ const localTest = url && new URL(url).hostname === "127.0.0.1" && new URL(url).p
 it.skipIf(!localTest)("ejecuta el recorrido de Operaciones con sesiones y PostgreSQL", async () => {
   const db = new PrismaClient({ datasources: { db: { url } } });
   const suffix = randomUUID();
+  const plate = Array.from({ length: 4 }, () => String.fromCharCode(65 + randomInt(26))).join("") +
+    String(randomInt(100)).padStart(2, "0");
   const password = "OperacionesQAPrueba123!";
   const origin = "http://localhost:3000";
   const app = createApp({ db, webOrigin: origin, secureCookies: false });
@@ -46,9 +48,9 @@ it.skipIf(!localTest)("ejecuta el recorrido de Operaciones con sesiones y Postgr
     await commercial.agent.get(resources).expect(403);
     await write(writer.agent.post(vehicles)).send({ name: "Furgón QA", type: "Furgón", plate: "ABC123" }).expect(400);
     vehicle = (await write(writer.agent.post(vehicles)).send({
-      name: "Furgón QA " + suffix, type: "Furgón", plate: "QB-47-11", status: "OPERATIONAL",
+      name: "Furgón QA " + suffix, type: "Furgón", plate, status: "OPERATIONAL",
     }).expect(201)).body;
-    expect(vehicle.plate).toBe("QB4711");
+    expect(vehicle.plate).toBe(plate);
     equipment = (await write(writer.agent.post(resources)).send({
       name: "Equipo QA " + suffix, category: "Audio QA " + suffix, mode: "UNIT", quantity: 1,
     }).expect(201)).body;
