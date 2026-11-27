@@ -327,10 +327,10 @@ export async function listEventosPublicos(db, filters = {}) {
   // Filtrar estrictamente solo eventos confirmados según regla comercial real
   const confirmedEvents = events.filter((ev) => computeEventStatus(ev) === "CONFIRMADO");
 
-  // Proyectar solo los campos públicos sin datos privados
+  // Proyectar solo los campos públicos sin datos privados ni título interno
   return confirmedEvents.map((ev) => ({
     id: ev.id,
-    title: ev.title,
+    title: "Evento confirmado",
     startsAt: ev.startsAt instanceof Date ? ev.startsAt.toISOString() : new Date(ev.startsAt).toISOString(),
     endsAt: ev.endsAt instanceof Date ? ev.endsAt.toISOString() : new Date(ev.endsAt).toISOString(),
   }));

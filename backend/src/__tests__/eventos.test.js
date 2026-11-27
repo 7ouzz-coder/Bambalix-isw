@@ -337,10 +337,11 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body).toHaveLength(1);
       expect(response.body[0].id).toBe(1);
-      expect(response.body[0].title).toBe("Evento Confirmado Aprobado y Pagado");
+      expect(response.body[0].title).toBe("Evento confirmado");
       expect(response.body[0].startsAt).toBe("2026-12-01T10:00:00.000Z");
       expect(response.body[0].endsAt).toBe("2026-12-01T14:00:00.000Z");
-      // Protege datos privados:
+      // Protege datos privados y título interno:
+      expect(response.body[0].title).not.toBe("Evento Confirmado Aprobado y Pagado");
       expect(response.body[0].client).toBeUndefined();
       expect(response.body[0].attendees).toBeUndefined();
       expect(response.body[0].needs).toBeUndefined();

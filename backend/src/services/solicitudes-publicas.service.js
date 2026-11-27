@@ -32,53 +32,74 @@ export async function isDateOccupiedByConfirmedEvent(tx, requestedDate) {
 }
 
 export async function registerPublicRequest(db, data, idempotencyKey) {
-  const runner = typeof db?.$transaction === "function" ? (cb) => db.$transaction(cb) : (cb) => cb(db);
+  // Comprobación previa de idempotencia fuera o antes de bloquear
+  if (idempotencyKey && typeof db?.publicEventRequest?.findUnique === "function") {
+    const existingBefore = await db.publicEventRequest.findUnique({
+      where: { idempotencyKey },
+      select: { name: true, email: true, phone: true, requestedDate: true, service: true },
+    });
+    if (existingBefore) {
+      const sameRequest =
+        existingBefore.name === data.name &&
+        existingBefore.email === data.email &&
+        existingBefore.phone.trim() === data.phone.trim() &&
+        existingBefore.requestedDate === data.requestedDate &&
+        existingBefore.service === data.service;
 
-  return runner(async (tx) => {
-    // 1. Manejo prioritario de idempotencia:
-    // Si la solicitud ya fue guardada previamente con esta clave, comprobar antes de rechazar
-    if (idempotencyKey && typeof tx?.publicEventRequest?.findUnique === "function") {
-      const existing = await tx.publicEventRequest.findUnique({
-        where: { idempotencyKey },
-        select: { name: true, email: true, phone: true, requestedDate: true, service: true },
-      });
-
-      if (existing) {
-        const sameRequest =
-          existing.name === data.name &&
-          existing.email === data.email &&
-          existing.phone.trim() === data.phone.trim() &&
-          existing.requestedDate === data.requestedDate &&
-          existing.service === data.service;
-
-        if (!sameRequest) {
-          const conflict = new Error("La solicitud cambió. Actualiza la página antes de volver a enviarla.");
-          conflict.statusCode = 409;
-          throw conflict;
-        }
-
-        // Si es exactamente la misma solicitud guardada previamente, devuelve éxito
-        // aun cuando la fecha se haya ocupado posteriormente
-        return { message: "Recibimos tu solicitud. La productora revisará la fecha y los servicios. Esto no confirma una reserva." };
+      if (!sameRequest) {
+        const conflict = new Error("La solicitud cambió. Actualiza la página antes de volver a enviarla.");
+        conflict.statusCode = 409;
+        throw conflict;
       }
-    }
 
-    // 2. Bloqueo consultivo de PostgreSQL para serializar la verificación de ocupación de la fecha
-    // evitando condiciones de carrera con confirmación comercial simultánea
-    if (typeof tx?.$queryRaw === "function") {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('public_date_' || ${data.requestedDate})) IS NOT NULL AS locked`;
+      return { message: "Recibimos tu solicitud. La productora revisará la fecha y los servicios. Esto no confirma una reserva." };
     }
+  }
 
-    // 3. Verificación en el servidor: rechazar si la fecha ya está ocupada por un evento confirmado
-    const isOccupied = await isDateOccupiedByConfirmedEvent(tx, data.requestedDate);
-    if (isOccupied) {
-      const conflict = new Error("La fecha seleccionada ya no se encuentra disponible. Por favor elige otra fecha.");
-      conflict.statusCode = 409;
-      throw conflict;
-    }
+  const executeInTransaction = async () => {
+    const runner = typeof db?.$transaction === "function" ? (cb) => db.$transaction(cb) : (cb) => cb(db);
 
-    // 4. Inserción de la nueva solicitud
-    try {
+    return runner(async (tx) => {
+      // 1. Adquirir el mismo bloqueo transaccional coordinado con Gabriel
+      // (solicitud pública, aprobación de cotización y verificación de abono)
+      if (typeof tx?.$queryRaw === "function") {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('bambalix_confirmacion_agenda')) IS NOT NULL AS locked`;
+      }
+
+      // 2. Verificar idempotencia nuevamente dentro de la transacción por si otra petición ganó la carrera
+      if (idempotencyKey && typeof tx?.publicEventRequest?.findUnique === "function") {
+        const existingInTx = await tx.publicEventRequest.findUnique({
+          where: { idempotencyKey },
+          select: { name: true, email: true, phone: true, requestedDate: true, service: true },
+        });
+
+        if (existingInTx) {
+          const sameRequest =
+            existingInTx.name === data.name &&
+            existingInTx.email === data.email &&
+            existingInTx.phone.trim() === data.phone.trim() &&
+            existingInTx.requestedDate === data.requestedDate &&
+            existingInTx.service === data.service;
+
+          if (!sameRequest) {
+            const conflict = new Error("La solicitud cambió. Actualiza la página antes de volver a enviarla.");
+            conflict.statusCode = 409;
+            throw conflict;
+          }
+
+          return { message: "Recibimos tu solicitud. La productora revisará la fecha y los servicios. Esto no confirma una reserva." };
+        }
+      }
+
+      // 3. Comprobar ocupación por eventos confirmados
+      const isOccupied = await isDateOccupiedByConfirmedEvent(tx, data.requestedDate);
+      if (isOccupied) {
+        const conflict = new Error("La fecha seleccionada ya no se encuentra disponible. Por favor elige otra fecha.");
+        conflict.statusCode = 409;
+        throw conflict;
+      }
+
+      // 4. Insertar la solicitud pública dentro de la transacción
       await tx.publicEventRequest.create({
         data: {
           ...data,
@@ -86,30 +107,37 @@ export async function registerPublicRequest(db, data, idempotencyKey) {
           ...(idempotencyKey ? { idempotencyKey } : {}),
         },
       });
-    } catch (error) {
-      if (idempotencyKey && error.code === "P2002" && typeof tx?.publicEventRequest?.findUnique === "function") {
-        const existingAfterRace = await tx.publicEventRequest.findUnique({
-          where: { idempotencyKey },
-          select: { name: true, email: true, phone: true, requestedDate: true, service: true },
-        });
-        if (existingAfterRace) {
-          const same =
-            existingAfterRace.name === data.name &&
-            existingAfterRace.email === data.email &&
-            existingAfterRace.phone.trim() === data.phone.trim() &&
-            existingAfterRace.requestedDate === data.requestedDate &&
-            existingAfterRace.service === data.service;
-          if (!same) {
-            const conflict = new Error("La solicitud cambió. Actualiza la página antes de volver a enviarla.");
-            conflict.statusCode = 409;
-            throw conflict;
-          }
-          return { message: "Recibimos tu solicitud. La productora revisará la fecha y los servicios. Esto no confirma una reserva." };
-        }
-      }
-      throw error;
-    }
 
-    return { message: "Recibimos tu solicitud. La productora revisará la fecha y los servicios. Esto no confirma una reserva." };
-  });
+      return { message: "Recibimos tu solicitud. La productora revisará la fecha y los servicios. Esto no confirma una reserva." };
+    });
+  };
+
+  try {
+    return await executeInTransaction();
+  } catch (error) {
+    // Si la transacción abortó por colisión de clave única (P2002), recuperar fuera de la transacción fallida
+    if (idempotencyKey && error.code === "P2002" && typeof db?.publicEventRequest?.findUnique === "function") {
+      const existingAfterConflict = await db.publicEventRequest.findUnique({
+        where: { idempotencyKey },
+        select: { name: true, email: true, phone: true, requestedDate: true, service: true },
+      });
+      if (existingAfterConflict) {
+        const sameRequest =
+          existingAfterConflict.name === data.name &&
+          existingAfterConflict.email === data.email &&
+          existingAfterConflict.phone.trim() === data.phone.trim() &&
+          existingAfterConflict.requestedDate === data.requestedDate &&
+          existingAfterConflict.service === data.service;
+
+        if (!sameRequest) {
+          const conflict = new Error("La solicitud cambió. Actualiza la página antes de volver a enviarla.");
+          conflict.statusCode = 409;
+          throw conflict;
+        }
+
+        return { message: "Recibimos tu solicitud. La productora revisará la fecha y los servicios. Esto no confirma una reserva." };
+      }
+    }
+    throw error;
+  }
 }
