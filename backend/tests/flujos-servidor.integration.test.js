@@ -5,7 +5,7 @@ import { createInternalUser } from '../src/services/sesiones.service.js';
 const enabled=process.env.LIVE_API_TEST==='1', url=process.env.TEST_DATABASE_URL;
 if(enabled && (!url || new URL(url).hostname!=='127.0.0.1' || !new URL(url).pathname.endsWith('_test'))) throw Error('Se requiere una base local de pruebas');
 describe.skipIf(!enabled)('Flujos HTTP integrados',()=>{
- it('crea y edita registros, aprueba la cotización y mantiene bloqueada la verificación',async()=>{
+ it('crea registros y verifica el abono con sesión de gerente',async()=>{
   const db=new PrismaClient({datasources:{db:{url}}}), suffix=randomUUID(), password=`Prueba-${suffix}`;
   let user,manager,client,event,type,resource,vehicle,quote,payment,publicRequest; let cookie,csrf;
   const api='http://127.0.0.1:55508/api/v1';
@@ -55,7 +55,13 @@ describe.skipIf(!enabled)('Flujos HTTP integrados',()=>{
    expect(approved).toMatchObject({status:'APROBADA',approvedBy:'Gerente QA'});
    expect(approved.approvedAt).toBeTruthy();
    await call('POST',`/quotes/${quote.id}/approve`,{},400);
-   await call('POST',`/payments/${payment.id}/verify`,{},403);
+   const verified=await call('POST',`/payments/${payment.id}/verify`,{},200);
+   expect(verified).toMatchObject({status:'VERIFICADO',verifiedBy:manager.id});
+   expect(verified.verifiedAt).toBeTruthy();
+   const summary=await call('GET',`/payments/quote/${quote.id}/summary`,undefined,200);
+   expect(summary.totalVerificado).toBe(50);
+   expect(summary.saldoPendiente).toBe(200);
+   await call('POST',`/payments/${payment.id}/verify`,{},409);
    ({cookie,csrf}=originalSession);
    await call('PATCH','/operations/resources/x/assignments/y/replacements/z/decision',{},403);
    await call('POST','/public/requests',{name:'Persona prueba',email:`${suffix}@example.test`,requestedDate:'2029-06-05',service:'Seminarios y congresos',phone:'+56912345678'},201);

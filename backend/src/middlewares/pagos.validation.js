@@ -6,6 +6,7 @@ export function requirePaymentVerifier(req, res, next) {
   if (!result.success) {
     return res.status(401).json({ message: "Se requiere una sesión interna válida para verificar pagos" });
   }
+  if (req.user.role !== "GERENTE") return res.status(403).json({ message: "Solo el gerente puede verificar abonos" });
   res.locals.paymentVerifier = result.data;
   next();
 }
