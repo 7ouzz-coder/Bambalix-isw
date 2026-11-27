@@ -144,6 +144,29 @@ export function EventoAgenda({ revision, onEventoUpdated }) {
     return formatted.charAt(0).toUpperCase() + formatted.slice(1);
   }
 
+  function getStatusBadge(status) {
+    const raw = String(status || "").toUpperCase();
+    if (raw === "CONFIRMADO") {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-300">
+          Confirmado
+        </span>
+      );
+    }
+    if (raw === "CANCELADO") {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">
+          Cancelado
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+        Por confirmar
+      </span>
+    );
+  }
+
   // Agrupar eventos por día de inicio
   const grouped = eventos.reduce((acc, ev) => {
     const dayKey = new Date(ev.startsAt).toDateString();
@@ -263,6 +286,7 @@ export function EventoAgenda({ revision, onEventoUpdated }) {
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold text-sm text-foreground">{ev.title}</span>
+                        {getStatusBadge(ev.status)}
                         {ev.eventType && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium">
                             {ev.eventType.name}
@@ -281,7 +305,14 @@ export function EventoAgenda({ revision, onEventoUpdated }) {
                         </span>
                         <span className="flex items-center gap-1">
                           <MapPin className="h-3.5 w-3.5" />
-                          Espacio: <span className="text-foreground/90">{ev.location || "Sin espacio asignado"}</span>
+                          Espacio:{" "}
+                          {ev.location ? (
+                            <span className="text-foreground/90">{ev.location}</span>
+                          ) : (
+                            <span className="text-amber-600 dark:text-amber-400 font-medium">
+                              Sin espacio asignado (pendiente)
+                            </span>
+                          )}
                         </span>
                         <span>{ev.attendees} asistentes</span>
                       </div>

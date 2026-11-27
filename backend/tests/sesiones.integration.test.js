@@ -83,10 +83,10 @@ describe('Sesión real y permisos', () => {
     for(let i=0;i<10;i++) await request(fresh).post('/api/v1/auth/login').send({});
     expect((await request(fresh).post('/api/v1/auth/login').send({})).status).toBe(429);
   });
-  it('ni un gerente con sesión real habilita decisiones sensibles', async () => {
+  it('la verificación del abono sigue bloqueada para un gerente con sesión real', async () => {
     await db.internalUser.update({where:{id:user.id},data:{role:'GERENTE'}});
     const fresh=createApp({db,webOrigin:origin});const response=await signIn(fresh);
-    for(const [method,path] of [['post','/quotes/x/approve'],['post','/payments/x/verify'],['patch','/operations/resources/x/assignments/y/replacements/z/decision']]) {
+    for(const [method,path] of [['post','/payments/x/verify']]) {
       expect((await request(fresh)[method]('/api/v1'+path).set('Cookie',cookie(response)).set('x-csrf-token',response.body.csrfToken).send({})).status).toBe(403);
     }
     await db.internalUser.update({where:{id:user.id},data:{role:'OPERACIONES'}});

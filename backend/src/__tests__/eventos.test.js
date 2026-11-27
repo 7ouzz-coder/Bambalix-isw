@@ -113,6 +113,22 @@ describe("Módulo Eventos - Rutas y Servicios", () => {
       expect(response.body.message).toContain("Los asistentes no pueden superar 100.000");
     });
 
+    it("rechaza con 400 si falta el lugar o viene vacío/con solo espacios", async () => {
+      const resMissing = await request(app)
+        .post("/api/v1/events")
+        .set("Origin", webOrigin)
+        .send({ ...validPayload, location: undefined });
+      expect(resMissing.status).toBe(400);
+      expect(resMissing.body.message).toContain("El lugar o espacio es obligatorio");
+
+      const resEmpty = await request(app)
+        .post("/api/v1/events")
+        .set("Origin", webOrigin)
+        .send({ ...validPayload, location: "   " });
+      expect(resEmpty.status).toBe(400);
+      expect(resEmpty.body.message).toContain("El lugar o espacio es obligatorio");
+    });
+
     it("devuelve 404 si el cliente no existe", async () => {
       mockDb.client.findUnique.mockResolvedValue(null);
 

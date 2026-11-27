@@ -168,7 +168,26 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Editar evento</DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle>Editar evento</DialogTitle>
+            {evento && (
+              <span className="text-xs">
+                {String(evento.status || "").toUpperCase() === "CONFIRMADO" ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-300">
+                    Confirmado
+                  </span>
+                ) : String(evento.status || "").toUpperCase() === "CANCELADO" ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">
+                    Cancelado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                    Por confirmar
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
         </DialogHeader>
         {error && (
           <p className="text-sm text-red-500 bg-red-500/10 p-2 rounded" role="alert">
@@ -302,10 +321,17 @@ export function EventoEditDialog({ evento, open, onOpenChange, onSaved }) {
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="edit-location">Lugar / Espacio (opcional)</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="edit-location">Lugar / Espacio</Label>
+              {!evento?.location && (
+                <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                  Pendiente de completar
+                </span>
+              )}
+            </div>
             <Input
               id="edit-location"
-              placeholder="Ej: Salón Principal"
+              placeholder="Ej: Salón Principal (sin espacio asignado)"
               {...register("location")}
             />
           </div>

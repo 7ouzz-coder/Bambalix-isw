@@ -35,9 +35,27 @@ it('identifica fechas ocupadas de prueba en rojo y con una etiqueta accesible',a
   const occupied=[...container.querySelectorAll('.public-calendar-grid button')].find(button=>button.textContent==='15');
   const other=[...container.querySelectorAll('.public-calendar-grid button')].find(button=>button.textContent==='16');
   expect(occupied.classList.contains('public-calendar-occupied')).toBe(true);
-  expect(occupied.getAttribute('aria-label')).toContain('ocupado');
+  expect(occupied.getAttribute('aria-label')).toMatch(/ocupado/i);
+  expect(occupied.disabled).toBe(true);
   expect(other.classList.contains('public-calendar-occupied')).toBe(false);
+  expect(other.disabled).toBe(false);
  } finally {await act(async()=>root.unmount());container.remove();}
+});
+
+it('muestra mensaje informativo de disponibilidad no confirmada y permite seleccionar fecha ante respuesta 503', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date(2028, 1, 10, 12));
+  const err = new Error('Puedes enviar la fecha que te interesa y la productora la revisará.');
+  err.status = 503;
+  publicService.publicAgenda.mockRejectedValue(err);
+  const container = document.createElement('div'); document.body.append(container); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<PublicContact />));
+    expect(container.textContent).toContain('La disponibilidad de estas fechas aún no está confirmada');
+    expect(container.textContent).toContain('Puedes enviar la fecha que te interesa y la productora la revisará.');
+    const buttons = [...container.querySelectorAll('.public-calendar-grid button')];
+    await act(async () => buttons[9].click());
+    expect(container.querySelector('input[name=requestedDate]').value).toBe('2028-02-10');
+  } finally { await act(async () => root.unmount()); container.remove(); }
 });
 
 it('hidrata sin errores aunque el servidor y el navegador cambien de mes',async()=>{
