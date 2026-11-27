@@ -23,6 +23,7 @@ export function createApp({ db, webOrigin, sessionMiddleware = loadSession(db), 
       return res.status(403).json({ message: "Origen no autorizado" });
     next();
   });
+  app.use("/api/v1/operations/resources/:id/maintenances", express.json({ limit: "3mb" }));
   app.use(express.json({ limit: "16kb" }));
   app.get("/api/v1/health", async (_req, res) => {
     await db.$queryRaw`SELECT 1`;

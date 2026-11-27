@@ -52,6 +52,7 @@ export function MaintenanceFollowUp({ equipmentId, maintenanceId, busy, onBack, 
         <Button variant="outline" onClick={() => { setNotice(""); setAction("note"); }}>Añadir observación</Button>
         <Button onClick={() => { setNotice(""); setAction("close"); }}>Cerrar mantención</Button>
       </div>}
+      <p className="form-note">Para cerrar una mantención abierta, guarda primero la foto después de la mantención.</p>
       <MaintenancePhotos equipmentId={equipmentId} maintenanceId={maintenanceId} />
       <h4>Bitácora de observaciones</h4>
       {state.items.length ? <ol>{state.items.map(note => <li key={note.id}>

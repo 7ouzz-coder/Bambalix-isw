@@ -69,14 +69,25 @@ it.skipIf(!localTest)("ejecuta el recorrido de Operaciones con sesiones y Postgr
     expect(initial.body.vehiculos.some(item => item.id === vehicle.id)).toBe(true);
     await write(writer.agent.post(vehiclePath + "/maintenances")).send({ ...period, endsAt: start, reason: "Inválido" }).expect(400);
     await write(writer.agent.post(vehiclePath + "/maintenances")).send({ ...period, reason: "Mantención QA" }).expect(201);
-    const maintenance = (await write(writer.agent.post(equipmentPath + "/maintenances")).send({ ...period, reason: "Mantención QA" }).expect(201)).body;
-    const photo = equipmentPath + "/maintenances/" + maintenance.id + "/photos/";
     const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
+    const before = { mime: "image/png", base64: image.toString("base64") };
+    await write(writer.agent.post(equipmentPath + "/maintenances")).send({ ...period, reason: "Mantención QA" }).expect(400);
+    const maintenance = (await write(writer.agent.post(equipmentPath + "/maintenances")).send({ ...period, reason: "Mantención QA", photo: before }).expect(201)).body;
+    const photo = equipmentPath + "/maintenances/" + maintenance.id + "/photos/";
+    await write(writer.agent.patch(equipmentPath + "/maintenances/" + maintenance.id + "/close")).send({ closingNotes: "Mantención completada" }).expect(409);
     await write(writer.agent.post(photo + "before")).type("png").send(Buffer.from("texto")).expect(400);
     for (const stage of ["before", "after"]) {
       await write(writer.agent.post(photo + stage)).type("png").send(image).expect(204);
       expect((await reader.agent.get(photo + stage).expect(200)).body).toEqual(image);
     }
+    await write(writer.agent.patch(equipmentPath + "/maintenances/" + maintenance.id + "/close")).send({ closingNotes: "Mantención completada" }).expect(200);
+    const legacy = await db.equipmentMaintenance.create({ data: {
+      resourceId: equipment.id, startsAt: new Date(start), endsAt: new Date(end), reason: "Mantención anterior",
+    } });
+    const legacyPath = equipmentPath + "/maintenances/" + legacy.id;
+    await write(writer.agent.patch(legacyPath + "/close")).send({ closingNotes: "Trabajo anterior completo" }).expect(409);
+    await write(writer.agent.post(legacyPath + "/photos/after")).type("png").send(image).expect(204);
+    await write(writer.agent.patch(legacyPath + "/close")).send({ closingNotes: "Trabajo anterior completo" }).expect(200);
     const busy = await commercial.agent.get(availability).expect(200);
     expect(busy.body.equipos.some(item => item.id === equipment.id)).toBe(false);
     expect(busy.body.vehiculos.some(item => item.id === vehicle.id)).toBe(false);
